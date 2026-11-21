@@ -1,45 +1,70 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
+import { cleanAnswers, parseAnswersParam, readOfPlan } from "@/lib/plan-read";
 import type { MissionPlan } from "@/server/planner/types";
-import { PlanCard } from "./plan-card";
-import { Button, LinkButton, Notice, TextArea } from "./ui";
+import { Button, CupiMark, Notice, TextArea } from "./ui";
 
 const EXAMPLES = [
   "Build me a beautiful website for my tutoring company",
+  "Find buyers in Delhi for 500 kg of ashwagandha root at Rs 450 per kg",
+  "Post Instagram reels for my electronics shop in Bharuch",
   "Create a cited economics presentation on inflation",
-  "Plan 10 YouTube Shorts a day for my cooking channel",
-  "Find and prepare outreach to qualified sales prospects",
 ];
 
 /**
- * Cupi intake. In `preview` mode (landing page) it calls the public planner
- * and shows the plan without saving. In `create` mode it creates a mission.
- * `hero` and `aside` let the landing page keep the headline and Cupi beside
- * the form while the plan renders full width underneath.
+ * Mission Control intake. As the goal is typed, Cupi previews the plan and
+ * asks the planner's own questions (price, stock, language, audience...) so
+ * the answers travel into every step's input when the mission is created.
+ * Every question is optional; anything left blank is marked as missing by
+ * the skills rather than guessed.
  */
-export function Intake({ mode, hero, aside }: { mode: "preview" | "create"; hero?: ReactNode; aside?: ReactNode }) {
+export function Intake() {
   const router = useRouter();
   const params = useSearchParams();
   const [goal, setGoal] = useState(() => params.get("goal") ?? "");
+  const [answers, setAnswers] = useState<Record<string, string>>(() => parseAnswersParam(params.get("answers")));
   const [plan, setPlan] = useState<MissionPlan | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastRead = useRef("");
+
+  function updateGoal(value: string) {
+    setGoal(value);
+    if (value.trim().length < 8) {
+      setPlan(null);
+      lastRead.current = "";
+    }
+  }
+
+  useEffect(() => {
+    const trimmed = goal.trim();
+    if (trimmed.length < 8 || trimmed === lastRead.current) return;
+    const t = setTimeout(async () => {
+      setPreviewing(true);
+      try {
+        const res = await api<{ plan: MissionPlan }>("/api/plan/preview", { json: { goal: trimmed } });
+        lastRead.current = trimmed;
+        setPlan(res.plan);
+      } catch {
+        /* the real plan is built on submit; a failed preview only hides the questions */
+      } finally {
+        setPreviewing(false);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [goal]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (mode === "preview") {
-        const res = await api<{ plan: MissionPlan }>("/api/plan/preview", { json: { goal } });
-        setPlan(res.plan);
-      } else {
-        const res = await api<{ mission: { id: string } }>("/api/missions", { json: { goal } });
-        router.push(`/app/missions/${res.mission.id}`);
-      }
+      const res = await api<{ mission: { id: string } }>("/api/missions", { json: { goal, answers: cleanAnswers(answers) } });
+      router.push(`/app/missions/${res.mission.id}`);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -47,22 +72,53 @@ export function Intake({ mode, hero, aside }: { mode: "preview" | "create"; hero
     }
   }
 
-  const form = (
-    <form onSubmit={submit} className="space-y-3">
+  const questions = plan?.questions ?? [];
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
       <TextArea
-        label={mode === "preview" ? "Tell Cupi the dream" : "What should the crew work on?"}
+        label="What should the crew work on?"
         name="goal"
         rows={3}
         required
         minLength={8}
         maxLength={500}
-        placeholder="Launch my tutoring company with a simple website and a pitch deck"
+        placeholder="Find buyers in Bharuch for 200 bags of basmati rice, message them in Gujarati"
         value={goal}
-        onChange={(e) => setGoal(e.target.value)}
+        onChange={(e) => updateGoal(e.target.value)}
       />
+
+      {plan && (
+        <div className="rounded-[14px] bg-white/70 p-4">
+          <div className="flex items-start gap-3">
+            <CupiMark size={32} className="mt-0.5 shrink-0" />
+            <p className="text-[14.5px] leading-relaxed text-ink">{previewing ? "Looking at that again." : readOfPlan(plan)}</p>
+          </div>
+          {questions.length > 0 && (
+            <fieldset className="mt-4">
+              <legend className="text-[13.5px] font-semibold text-ink">A few quick things. All optional; blanks are marked, never guessed.</legend>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {questions.map((q) => (
+                  <label key={q.key} className="block">
+                    <span className="mb-1 block text-[13px] text-mute">{q.prompt}</span>
+                    <input
+                      name={`answer-${q.key}`}
+                      value={answers[q.key] ?? ""}
+                      maxLength={500}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}
+                      className="w-full rounded-[var(--radius-control)] border border-line bg-white px-3 py-2 text-[14.5px] text-midnight focus:border-lavender"
+                    />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={busy || goal.trim().length < 8}>
-          {busy ? "Cupi is planning" : mode === "preview" ? "Show me the plan" : "Plan this mission"}
+          {busy ? "Cupi is planning" : "Plan this mission"}
         </Button>
         <span className="text-[13px] text-mute">Nothing runs until you approve the estimate.</span>
       </div>
@@ -71,7 +127,7 @@ export function Intake({ mode, hero, aside }: { mode: "preview" | "create"; hero
           <button
             type="button"
             key={ex}
-            onClick={() => setGoal(ex)}
+            onClick={() => updateGoal(ex)}
             className="rounded-[var(--radius-pill)] border border-line bg-white px-3 py-1.5 text-[13px] text-ink hover:border-lavender hover:bg-lavender-soft"
           >
             {ex}
@@ -80,30 +136,5 @@ export function Intake({ mode, hero, aside }: { mode: "preview" | "create"; hero
       </div>
       {error && <Notice tone="error">{error}</Notice>}
     </form>
-  );
-
-  if (mode === "create") return form;
-
-  return (
-    <div className="space-y-10">
-      <div className="grid items-center gap-10 md:grid-cols-[1.15fr_0.85fr]">
-        <div>
-          {hero}
-          <div className="mt-8">{form}</div>
-        </div>
-        {aside}
-      </div>
-      {plan && (
-        <PlanCard
-          plan={plan}
-          footer={
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-[14px] text-ink">Sign up to run this with 100 free credits.</span>
-              <LinkButton href={`/signup?goal=${encodeURIComponent(goal)}`}>Create my account</LinkButton>
-            </div>
-          }
-        />
-      )}
-    </div>
   );
 }

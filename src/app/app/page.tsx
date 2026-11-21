@@ -25,7 +25,7 @@ export default async function MissionsPage() {
 
       <Card tone="deep">
         <Suspense>
-          <Intake mode="create" />
+          <Intake />
         </Suspense>
       </Card>
 

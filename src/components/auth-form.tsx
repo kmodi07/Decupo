@@ -18,8 +18,13 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     try {
       await api(mode === "login" ? "/api/auth/login" : "/api/auth/signup", { json: data });
-      const goal = params.get("goal");
-      router.push(goal ? `/app?goal=${encodeURIComponent(goal)}` : "/app");
+      // Carry the goal and any answers given on the landing page into Mission Control.
+      const next = new URLSearchParams();
+      for (const key of ["goal", "answers"]) {
+        const v = params.get(key);
+        if (v) next.set(key, v);
+      }
+      router.push(next.size ? `/app?${next.toString()}` : "/app");
       router.refresh();
     } catch (err) {
       setError(errorMessage(err));

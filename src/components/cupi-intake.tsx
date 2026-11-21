@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
+import { cleanAnswers, readOfPlan } from "@/lib/plan-read";
 import type { MissionPlan } from "@/server/planner/types";
 import { CupiAvatar, type CupiMood } from "./cupi-avatar";
 import { PlanCard } from "./plan-card";
@@ -42,6 +43,7 @@ export function CupiIntake() {
   const [showFull, setShowFull] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [greeting] = useState(() => GREETINGS[0]!);
   const placeholder = useTypedPlaceholder(EXAMPLES, focused || goal.length > 0);
   const lastRead = useRef("");
@@ -84,7 +86,7 @@ export function CupiIntake() {
   }
 
   const mood: CupiMood = busy ? "thinking" : celebrate ? "happy" : focused ? "listening" : "idle";
-  const bubble = busy ? "Thinking about who to bring and what it costs." : plan ? readOf(plan) : focused && goal.trim().length < 8 ? "Go on, I'm listening." : greeting;
+  const bubble = busy ? "Thinking about who to bring and what it costs." : plan ? readOfPlan(plan, { withQuestion: true }) : focused && goal.trim().length < 8 ? "Go on, I'm listening." : greeting;
 
   return (
     <div className="space-y-8">
@@ -147,9 +149,30 @@ export function CupiIntake() {
           <PlanCard
             plan={plan}
             footer={
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-[14px] text-ink">Sign up to run this with 100 free credits. Cupi asks the questions above once you are in.</span>
-                <LinkButton href={`/signup?goal=${encodeURIComponent(goal)}`}>Create my account</LinkButton>
+              <div className="space-y-4">
+                {plan.questions.length > 0 && (
+                  <fieldset>
+                    <legend className="text-[13.5px] font-semibold text-ink">Cupi would ask. All optional; blanks are marked, never guessed.</legend>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {plan.questions.map((q) => (
+                        <label key={q.key} className="block">
+                          <span className="mb-1 block text-[13px] text-mute">{q.prompt}</span>
+                          <input
+                            name={`answer-${q.key}`}
+                            value={answers[q.key] ?? ""}
+                            maxLength={500}
+                            onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}
+                            className="w-full rounded-[var(--radius-control)] border border-line bg-white px-3 py-2 text-[14.5px] text-midnight focus:border-lavender"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-[14px] text-ink">Sign up to run this with 100 free credits. Your goal and answers come with you.</span>
+                  <LinkButton href={signupHref(goal, answers)}>Create my account</LinkButton>
+                </div>
               </div>
             }
           />
@@ -159,28 +182,11 @@ export function CupiIntake() {
   );
 }
 
-/** One sentence Cupi says about the plan, from the planner's own output. */
-function readOf(plan: MissionPlan): string {
-  const crew = plan.team.filter((n) => n !== "Cupi");
-  const who = crew.length <= 1 ? crew.join("") : `${crew.slice(0, -1).join(", ")} and ${crew.at(-1)}`;
-  const approvals = plan.steps.filter((s) => s.requiresApproval).length;
-  const kind: Record<string, string> = {
-    website: "A website mission",
-    presentation: "A presentation mission",
-    social: "A social media mission",
-    buyers: "A buyer-finding mission",
-    outreach: "An outreach mission",
-    research: "A research mission",
-  };
-  const notYet = plan.capabilities.filter((c) => c.status !== "supported").length;
-  return [
-    `${kind[plan.templateId] ?? "A mission"}: ${plan.steps.length} steps with ${who}, about ${plan.estimateCredits} credits.`,
-    approvals ? `${approvals === 1 ? "One step waits" : `${approvals} steps wait`} for your approval.` : "",
-    notYet ? `I'll show you plainly what is not possible yet.` : "",
-    plan.questions.length ? `I'd ask: ${plan.questions[0]!.prompt}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+function signupHref(goal: string, answers: Record<string, string>): string {
+  const q = new URLSearchParams({ goal });
+  const a = cleanAnswers(answers);
+  if (a) q.set("answers", JSON.stringify(a));
+  return `/signup?${q.toString()}`;
 }
 
 /** Typewriter placeholder that cycles through examples until the person starts typing. */
