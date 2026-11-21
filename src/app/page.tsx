@@ -1,22 +1,18 @@
 import { Suspense } from "react";
-import { Intake } from "@/components/intake";
-import { AVAILABILITY_LABEL, AgentBadge, availabilityTone, CupiMark, LinkButton, Pill, Wordmark } from "@/components/ui";
+import { CupiIntake } from "@/components/cupi-intake";
+import { Deliverables } from "@/components/landing/deliverables";
+import { Faq } from "@/components/landing/faq";
+import { MissionWalkthrough } from "@/components/landing/mission-walkthrough";
+import { AVAILABILITY_LABEL, AgentBadge, availabilityTone, LinkButton, Pill, Wordmark } from "@/components/ui";
 import { getCurrentUser } from "@/server/auth/current";
 import { AGENT_ROLES } from "@/server/skills/types";
-
-const STAGES: { title: string; body: string }[] = [
-  { title: "Say it", body: "One or two sentences. Cupi asks only for what is missing." },
-  { title: "See the plan and the price", body: "Which agents, which steps, how many credits. Anything consequential is marked as needing your approval." },
-  { title: "Give the go-ahead", body: "Credits are reserved, not spent. You can set a ceiling." },
-  { title: "Watch the crew work", body: "Every step reports in. Pause, resume or stop at any time." },
-  { title: "Review the deliverables", body: "Each step settles what it used. Unused credits come back." },
-];
 
 const TODAY: { label: string; status: "supported" | "needs_connection" | "not_available" }[] = [
   { label: "Mission planning with estimates and approvals", status: "supported" },
   { label: "Brand briefs, research memos, site and deck outlines", status: "supported" },
+  { label: "Generated multi-page website with preview and quality check", status: "supported" },
   { label: "Live updates, pause, resume, cancel, credit ledger", status: "supported" },
-  { label: "Generated website code with tests and a preview", status: "not_available" },
+  { label: "Deploying the site to hosting", status: "needs_connection" },
   { label: "Editable slide decks with citations", status: "not_available" },
   { label: "YouTube publishing", status: "needs_connection" },
   { label: "Sending email or messages", status: "not_available" },
@@ -39,89 +35,103 @@ export default async function Landing() {
                 Log in
               </LinkButton>
               <LinkButton href="/signup" variant="secondary">
-                Sign up
+                Start free
               </LinkButton>
             </>
           )}
         </div>
       </nav>
 
-      {/* Hero: the headline and a working intake, with Cupi alongside. */}
-      <section className="mx-auto max-w-6xl px-5 pb-16 pt-6 md:pt-14">
-        <Suspense>
-          <Intake
-            mode="preview"
-            hero={
-              <>
-                <h1 className="max-w-[12ch] text-[44px] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[64px]">Say the dream. Watch it happen.</h1>
-                <p className="mt-5 max-w-[46ch] text-[18px] leading-relaxed text-ink">
-                  Cupi turns a short goal into a mission, prices it in credits, and assigns a small crew of specialist agents. They work in
-                  bounded steps, stop for your approval before anything leaves the building, and tell you plainly when something is not
-                  possible yet.
-                </p>
-              </>
-            }
-            aside={
-              <div className="relative mx-auto hidden md:block">
-                <div className="absolute inset-x-8 bottom-6 h-10 rounded-full bg-lavender/20 blur-2xl" aria-hidden />
-                <CupiMark size={420} priority className="cupi-float relative drop-shadow-[0_30px_40px_rgba(128,101,237,0.25)]" />
-              </div>
-            }
-          />
-        </Suspense>
+      {/* Front door: Cupi greets the visitor and reads the goal as they type. */}
+      <section className="hero-scene relative overflow-hidden">
+        <div className="mx-auto max-w-6xl px-5 pb-16 pt-8 md:pt-12">
+          <div className="mx-auto max-w-[22ch] text-center md:max-w-none md:text-left">
+            <h1 className="text-[40px] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[56px] md:max-w-[14ch]">Say the dream. Watch it happen.</h1>
+            <p className="mt-4 max-w-[52ch] text-[17px] leading-relaxed text-ink md:text-[18px]">
+              Meet Cupi, who turns a short goal into a priced mission and sends a small crew of specialist agents to do it, step by step, with
+              your approval before anything leaves the building.
+            </p>
+          </div>
+          <div className="mt-8 md:mt-10">
+            <Suspense>
+              <CupiIntake />
+            </Suspense>
+          </div>
+        </div>
       </section>
 
-      {/* How a mission runs: this is a sequence, so it is numbered. */}
+      {/* Honest status strip in place of social proof. */}
+      <section aria-label="What works today" className="border-y border-line bg-white/60">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4 text-[13.5px]">
+          <span className="font-semibold">Foundation phase.</span>
+          <span className="text-mute">Websites, briefs, research and outlines run today. Deploying, decks and publishing are shown as not ready, never faked.</span>
+        </div>
+      </section>
+
+      {/* A mission, step by step: sticky walkthrough. */}
+      <section className="mx-auto max-w-6xl px-5 py-20">
+        <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]">A mission, step by step.</h2>
+        <p className="mt-2 max-w-[60ch] text-[16px] text-ink">Scroll through what happens after you say it. The right side is what Mission Control shows at each moment.</p>
+        <div className="mt-10">
+          <MissionWalkthrough />
+        </div>
+      </section>
+
+      {/* Deliverables */}
       <section className="bg-midnight text-cream">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-[30px] font-bold tracking-tight">How a mission runs</h2>
-          <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-            {STAGES.map((s, i) => (
-              <li key={s.title} className="border-t border-cream/15 pt-4">
-                <span className="text-[13px] font-semibold tabular-nums text-coral">{i + 1}</span>
-                <h3 className="mt-1 text-[17px] font-semibold">{s.title}</h3>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-cream/75">{s.body}</p>
-              </li>
-            ))}
-          </ol>
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]">Real deliverables, honestly labelled.</h2>
+          <p className="mt-2 max-w-[60ch] text-[16px] text-cream/75">
+            These are the artifact types a mission produces today. When the crew drafts something offline, it says so on the artifact and in the
+            quality review.
+          </p>
+          <div className="mt-10">
+            <Deliverables />
+          </div>
+          <p className="mt-4 text-[12.5px] text-cream/50">Example content, not a live account.</p>
         </div>
       </section>
 
       {/* Crew */}
-      <section className="mx-auto max-w-6xl px-5 py-16">
-        <h2 className="text-[30px] font-bold tracking-tight">The crew</h2>
-        <p className="mt-2 max-w-[60ch] text-[16px] text-ink">
-          Cupi only calls the agents a goal actually needs. A simple research task is one agent; a website is three or four.
-        </p>
-        <ul className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mx-auto max-w-6xl px-5 py-20">
+        <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]">The crew.</h2>
+        <p className="mt-2 max-w-[60ch] text-[16px] text-ink">Cupi only calls the agents a goal actually needs. A simple research task is one agent; a website is three.</p>
+        <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(AGENT_ROLES).map(([name, role]) => (
-            <li key={name} className="flex items-center gap-3">
+            <li key={name} className="crew-card flex items-center gap-3 rounded-[16px] border border-line bg-white px-4 py-3.5">
               <AgentBadge name={name} />
               <div>
                 <span className="text-[16px] font-semibold">{name}</span>
-                <span className="block text-[14px] text-mute">{role}</span>
+                <span className="block text-[13.5px] text-mute">{role}</span>
               </div>
             </li>
           ))}
         </ul>
       </section>
 
-      {/* Honesty */}
-      <section className="mx-auto max-w-6xl px-5 pb-16">
+      {/* What works today */}
+      <section className="mx-auto max-w-6xl px-5 pb-20">
         <div className="rounded-[var(--radius-card)] bg-cream-deep p-6 sm:p-8">
           <h2 className="text-[26px] font-bold tracking-tight">What works today</h2>
           <p className="mt-2 max-w-[60ch] text-[15px] text-ink">
-            Decupo is in its foundation phase. The planner shows these same labels inside every mission, so you never authorise something that
-            cannot happen.
+            The planner shows these same labels inside every mission, so you never authorise something that cannot happen.
           </p>
-          <ul className="mt-6 divide-y divide-line">
+          <ul className="mt-6 grid gap-x-8 sm:grid-cols-2">
             {TODAY.map((t) => (
-              <li key={t.label} className="flex items-center justify-between gap-4 py-3 text-[15px]">
+              <li key={t.label} className="flex items-center justify-between gap-4 border-b border-line py-3 text-[15px]">
                 <span>{t.label}</span>
                 <Pill tone={availabilityTone(t.status)}>{AVAILABILITY_LABEL[t.status]}</Pill>
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-auto max-w-4xl px-5 pb-24">
+        <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]">Questions people ask.</h2>
+        <div className="mt-8">
+          <Faq />
         </div>
       </section>
 
