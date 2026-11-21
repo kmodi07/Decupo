@@ -21,6 +21,7 @@ Consequences and rules:
   3. Plan the Cloudflare DNS change (apex and `www`) with a rollback, and keep existing email/DNS records that unrelated services depend on.
   4. Only then point decupo.com at Decupo. Until that plan is approved, the app stays on its local/dev origin.
 - Paddle (merchant of record) is now a candidate for Decupo's billing alongside Stripe when backlog item B-40 is scoped. No decision yet.
+- **Inventory read from Cloudflare (same day, read-only):** the transcription service is a Cloudflare Worker named `transcreve` bound to `decupo.com` and `www.decupo.com`, with customer state in a KV namespace and a Durable Object, Paddle Billing in production, and a `decupo-staging` twin on the Paddle sandbox. Email on the domain uses Cloudflare Email Routing. Full inventory and the step-by-step plan: `RUNBOOK_DECUPO_COM_CUTOVER.md`. Open decisions D1 to D5 in that runbook block execution.
 
 ## 2026-11-21 — Build team: Phase 1 stack
 See `docs/superpowers/specs/2026-11-21-phase1-foundation-design.md` (single Next.js app plus worker, Drizzle with PGlite locally and PostgreSQL in production, own session auth, offline LLM mock until a provider key exists).
