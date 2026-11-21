@@ -35,15 +35,15 @@ date of the last update.
 | B-22 | Sandboxed build step (container with no egress) for generated sites | not started (still pending: generation is template-based and executes no user code, so no sandbox is needed yet; required before custom code or framework builds are accepted) |
 | B-23 | Presentation generator: research with citations -> editable deck (pptx export), QA check for uncited claims | not started |
 | B-24 | Artifact versioning + download UI | not started |
-| B-26 | Buyer-finding missions: offer sheet, buyer map by product family, outreach drafts in English/Hindi/Gujarati; lead search and sending behind connections and per-batch approval | done (drafting); blocked (lead data and messaging connectors, B-30) |
-| B-27 | Social missions for local businesses: local market research, weekly reel plan in the seller's language; posting behind account connection and per-reel approval | done (planning); blocked (video rendering, Instagram/YouTube connectors, B-31) |
+| B-26 | Buyer-finding missions: offer sheet, buyer map by product family, outreach drafts in English/Hindi/Gujarati; lead search and sending behind connections and per-batch approval | done (end to end against the mock adapters: lead search fills the lead list, one approved batch is sent and every message is logged; live sending waits on an operator enabling the Gmail / WhatsApp adapters, B-30) |
+| B-27 | Social missions for local businesses: local market research, weekly reel plan in the seller's language; posting behind account connection and per-reel approval | done (planning, plus posting of one approved reel from a user-supplied video link through the Instagram / YouTube adapters, B-30); blocked (video rendering; live YouTube needs Google verification, B-31) |
 | B-25 | Vale validator skill (independent QA pass) | in progress (`qa-review` for documents, `site-check` for generated sites; LLM-assisted review pending B-20) |
 
 ## M3 - Connected automations (Phase 3)
 | ID | Item | Status |
 |---|---|---|
-| B-30 | OAuth connector framework (encrypted tokens, scope preview, revoke, access log) | not started |
-| B-31 | Google OAuth + YouTube publisher behind verification, quota meter, content-policy check | blocked (needs Google Cloud project + verification) |
+| B-30 | OAuth connector framework (encrypted tokens, scope preview, revoke, access log) | done (`src/server/connections`: provider registry for data / mailbox / whatsapp / instagram / youtube, API-key and OAuth+PKCE connect, revoke, `connection_access_log`, Connected apps page; adapters behind `CONNECTOR_<PROVIDER>_ADAPTER=mock` or `=live`; live adapters are written against the documented HTTP APIs but have not been exercised against real accounts from this repository) |
+| B-31 | Google OAuth + YouTube publisher behind verification, quota meter, content-policy check | in progress (OAuth client flow and private-upload adapter exist behind `CONNECTOR_YOUTUBE_ADAPTER`); blocked (Google Cloud project, app verification, quota metering and the content-policy check) |
 | B-32 | Pre-authorisation policies (Tier 2) with limits | not started |
 | B-33 | Notifications: in-app + email opt-in | not started |
 
@@ -68,4 +68,4 @@ date of the last update.
 | B-57 | Load test of worker throughput | not started |
 | B-58 | Security review / dependency audit in CI | not started |
 
-Last updated: 2026-11-21 (Phase 2 iteration 1: website generator B-21 done, 39 tests passing, production build green).
+Last updated: 2026-11-21 (Phase 3 iteration 1: connector framework B-30 done, 69 tests passing, production build green).

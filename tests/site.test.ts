@@ -307,6 +307,7 @@ describe("website mission end to end", () => {
       recordUsage: async () => {},
       log: async () => {},
       hasConnection: async () => false,
+      connector: async (provider) => ({ status: "needs_connection", provider, code: "no_connection", reason: "none" }),
     });
     expect(res.status).toBe("blocked");
   });

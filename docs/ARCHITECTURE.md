@@ -35,7 +35,8 @@ except through `src/server/db` and the tenant-scoped services.
 | `policy/` | Action classes (publish, deploy, spend, send, delete, ...) and the rule that Tier 3 actions always create an approval unless a stored pre-authorisation matches. |
 | `jobs/` | Durable queue on a Postgres table: `enqueue`, `claim` (FOR UPDATE SKIP LOCKED + lease), `complete`, `fail` with backoff, `reapExpiredLeases`. |
 | `worker/` | Step runner: claims a job, re-checks mission status (paused/canceled), reserves credits, runs the skill, settles credits, writes events, schedules dependants. |
-| `secrets/` | AES-256-GCM envelope encryption with a key from `SECRETS_MASTER_KEY`. Used for connector tokens (Phase 5). |
+| `secrets/` | AES-256-GCM envelope encryption with a key from `SECRETS_MASTER_KEY`. Used for connector tokens and OAuth PKCE verifiers. |
+| `connections/` | Connector framework (B-30): provider registry with scope previews, API-key and OAuth+PKCE connect, revoke, token refresh, `connection_access_log`, and adapters (`mock` for tests, `live` HTTP clients) selected per provider by `CONNECTOR_<PROVIDER>_ADAPTER`. Skills reach providers only through `ctx.connector()`, which checks the skill's `connection:<provider>` scope and logs every call; tokens never leave this module. |
 | `storage/` | Artifact blob storage interface; local-disk driver in Phase 1, S3-compatible driver later. |
 | `llm/` | `LlmProvider` interface, `MockLlmProvider` (deterministic, clearly labelled output), Anthropic adapter (enabled by env). |
 

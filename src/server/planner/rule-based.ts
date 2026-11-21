@@ -77,10 +77,11 @@ const TEMPLATES: Template[] = [
       { key: "products", prompt: "What do you mainly sell?", required: false },
       { key: "market", prompt: "Which town or area are your customers in?", required: false },
       { key: "language", prompt: "Which language should captions be in? English, Hindi or Gujarati.", required: false },
+      { key: "videoUrl", prompt: "If you have already shot the first reel, a public link to the video file so it can be posted.", required: false },
     ],
     capabilities: [
       { label: "Local market research and a weekly reel plan", status: "supported", note: "Research is an offline outline until a language model and web access are connected." },
-      { label: "Video rendering", status: "not_available", note: "Media pipeline is a later phase; the plan is for you to shoot from." },
+      { label: "Video rendering", status: "not_available", note: "Media pipeline is a later phase; the plan is for you to shoot from, or give a link to a video you shot." },
       { label: "Posting to Instagram or YouTube", status: "needs_connection", note: "From your own connected account, one reel per approval." },
     ],
     caveats: ["Nothing is posted or promoted without your approval of each reel. Promotion budgets are never spent without a separate approval."],

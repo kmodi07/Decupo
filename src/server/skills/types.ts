@@ -2,6 +2,8 @@ import type { z } from "zod";
 import type { ActionClass } from "../policy/actions";
 import type { LlmProvider } from "../llm/provider";
 import type { Artifact } from "../db/schema";
+import type { Connector } from "../connections/service";
+import type { ProviderId } from "../connections/providers";
 
 export const AGENTS = ["Cupi", "Scout", "Nova", "Forge", "Motion", "Echo", "Atlas", "Pulse", "Vale"] as const;
 export type AgentName = (typeof AGENTS)[number];
@@ -20,6 +22,17 @@ export const AGENT_ROLES: Record<AgentName, string> = {
 
 export type Availability = "supported" | "needs_connection" | "needs_approval" | "not_available";
 
+export type PermissionScope =
+  | "llm:complete"
+  | "artifact:write"
+  | "artifact:read"
+  | "connection:hosting"
+  | "connection:data"
+  | "connection:mailbox"
+  | "connection:whatsapp"
+  | "connection:instagram"
+  | "connection:youtube";
+
 export type SkillManifest = {
   id: string;
   version: string;
@@ -28,7 +41,7 @@ export type SkillManifest = {
   agent: AgentName;
   actionClass: ActionClass;
   /** Tools/resources the skill may touch. Enforced by what the context exposes. */
-  permissionScopes: readonly ("llm:complete" | "artifact:write" | "artifact:read" | "connection:hosting" | "connection:data" | "connection:mailbox")[];
+  permissionScopes: readonly PermissionScope[];
   privacy: "internal" | "user_content" | "third_party";
   cost: {
     /** Flat cost charged on every run. */
@@ -65,8 +78,14 @@ export type SkillContext = {
   readArtifact(artifactId: string): Promise<Artifact | null>;
   recordUsage(u: SkillUsage): Promise<void>;
   log(message: string, payload?: Record<string, unknown>): Promise<void>;
-  /** True when a hosting/publishing connection exists for the tenant (Phase 5). */
+  /** True when an active connection row exists for the tenant, whatever this server can do with it. */
   hasConnection(provider: string): Promise<boolean>;
+  /**
+   * Open a provider through the connector framework. Requires the matching
+   * `connection:<provider>` scope. Every call made through the result is
+   * written to the access log; the skill never sees a token.
+   */
+  connector(provider: ProviderId): Promise<Connector>;
 };
 
 export type SkillResult =
