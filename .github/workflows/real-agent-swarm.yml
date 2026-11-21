@@ -1,0 +1,77 @@
+name: Decupo • Real AI Agent Swarm
+
+on:
+  workflow_dispatch:
+    inputs:
+      goal:
+        description: "Describe what the agents should build"
+        required: true
+        default: "Build a production-quality first version of Decupo's site and mission backend"
+        type: string
+      max_turns:
+        description: "Maximum Claude turns per worker (cost control)"
+        required: true
+        default: "14"
+        type: choice
+        options:
+          - "8"
+          - "14"
+          - "20"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: decupo-agents-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-agent-swarm:
+    name: Three independent Claude workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify API key is configured
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::Add repository secret ANTHROPIC_API_KEY before running this workflow."
+            exit 1
+          fi
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Create isolated changes branch
+        run: git switch -c "agent/swarm-${{ github.run_id }}"
+      - name: Run actual agents concurrently
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISSION_GOAL: ${{ inputs.goal }}
+          AGENT_MAX_TURNS: ${{ inputs.max_turns }}
+          CI: "true"
+        run: python3 scripts/run_swarm.py
+      - name: Upload genuine execution reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decupo-agent-evidence-${{ github.run_id }}
+          path: agent-reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish branch for human review
+        if: success()
+        run: git push --set-upstream origin HEAD
+      - name: Create draft pull request
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create --draft --base main --head "agent/swarm-${{ github.run_id }}" \
+            --title "AI swarm: Decupo website, backend and QA (${{ github.run_id }})" \
+            --body "Created by three real concurrent Claude Code processes in isolated worktrees. Review every change, run tests, and verify security before merging. Evidence is in workflow artifact decupo-agent-evidence-${{ github.run_id }}. No deployment was performed."
