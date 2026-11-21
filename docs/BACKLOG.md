@@ -35,6 +35,8 @@ date of the last update.
 | B-22 | Sandboxed build step (container with no egress) for generated sites | not started (still pending: generation is template-based and executes no user code, so no sandbox is needed yet; required before custom code or framework builds are accepted) |
 | B-23 | Presentation generator: research with citations -> editable deck (pptx export), QA check for uncited claims | not started |
 | B-24 | Artifact versioning + download UI | not started |
+| B-26 | Buyer-finding missions: offer sheet, buyer map by product family, outreach drafts in English/Hindi/Gujarati; lead search and sending behind connections and per-batch approval | done (drafting); blocked (lead data and messaging connectors, B-30) |
+| B-27 | Social missions for local businesses: local market research, weekly reel plan in the seller's language; posting behind account connection and per-reel approval | done (planning); blocked (video rendering, Instagram/YouTube connectors, B-31) |
 | B-25 | Vale validator skill (independent QA pass) | in progress (`qa-review` for documents, `site-check` for generated sites; LLM-assisted review pending B-20) |
 
 ## M3 - Connected automations (Phase 3)

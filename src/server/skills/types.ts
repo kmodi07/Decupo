@@ -28,7 +28,7 @@ export type SkillManifest = {
   agent: AgentName;
   actionClass: ActionClass;
   /** Tools/resources the skill may touch. Enforced by what the context exposes. */
-  permissionScopes: readonly ("llm:complete" | "artifact:write" | "artifact:read" | "connection:hosting")[];
+  permissionScopes: readonly ("llm:complete" | "artifact:write" | "artifact:read" | "connection:hosting" | "connection:data" | "connection:mailbox")[];
   privacy: "internal" | "user_content" | "third_party";
   cost: {
     /** Flat cost charged on every run. */

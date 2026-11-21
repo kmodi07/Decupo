@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { SALES_SKILLS } from "./sales";
+import { SOCIAL_SKILLS } from "./social";
 import { siteBuild } from "./site-build";
 import { siteCheck } from "./site-check";
 import type { Skill, SkillContext } from "./types";
@@ -166,6 +168,14 @@ export const qaReview: Skill = {
     if (upstreamKeys.includes("research-memo") && Number(ctx.upstream["research-memo"]?.sourcesRetrieved ?? 0) === 0) {
       findings.push("Research memo has no retrieved sources; every claim is unverified.");
     }
+    // Buyer-finding missions: missing offer facts and absent leads are never hidden.
+    for (const k of upstreamKeys) {
+      const missing = ctx.upstream[k]?.missing;
+      if (Array.isArray(missing) && missing.length) findings.push(`${k} is missing: ${missing.join(", ")}. Outreach drafts carry placeholders until these are given.`);
+    }
+    if (upstreamKeys.some((k) => ctx.upstream[k]?.leadsRetrieved === 0)) {
+      findings.push("No buyer contacts have been retrieved; nothing can be sent until a data connection finds leads or you add them.");
+    }
     const verdict = findings.length ? "needs_work" : "pass";
     const body = [`# Quality review`, ``, `**Verdict:** ${verdict}`, ``, ...(findings.length ? findings.map((f) => `- ${f}`) : ["- No issues detected by automated checks."])].join("\n");
     const artifact = await ctx.writeArtifact({ kind: "markdown", title: "Quality review", content: body });
@@ -199,4 +209,4 @@ export const deployPreview: Skill = {
   },
 };
 
-export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview];
+export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview, ...SALES_SKILLS, ...SOCIAL_SKILLS];

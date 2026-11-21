@@ -13,11 +13,15 @@ const QA: Array<[string, string]> = [
   ],
   [
     "What can it actually do today?",
-    "Plan missions with honest estimates, write brand briefs, research memos and outlines, generate a multi-page website with a private preview and an offline quality check. Deployment, decks, publishing and email need connections that are not built yet, and the planner says so.",
+    "Plan missions with honest estimates, write brand briefs, research memos and outlines, generate a multi-page website with a private preview and an offline quality check, and prepare a sale: an offer sheet from your stock and price, a map of who buys it in your market, and outreach drafts for each. Deployment, decks, finding contacts and sending messages need connections that are not built yet, and the planner says so.",
   ],
   [
     "Is the content real?",
     "Without a connected language model the agents produce clearly labelled offline drafts. They never invent sources, prices or statistics, and Vale flags placeholder content in the quality review.",
+  ],
+  [
+    "Can it sell my stock for me?",
+    "It prepares everything: an offer sheet, the buyer segments in your market and what each asks for, and an email, WhatsApp and call draft per segment. Finding real contacts and sending from your own email or WhatsApp need connections that are coming, and every batch waits for your approval. Decupo never messages anyone on its own.",
   ],
   ["Do I own what the crew makes?", "Yes. Every deliverable can be opened and downloaded from Mission Control, including the generated site files."],
 ];

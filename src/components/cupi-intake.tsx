@@ -10,11 +10,20 @@ import { Button, LinkButton, Notice } from "./ui";
 
 const EXAMPLES = [
   "a website for my tutoring company",
+  "buyers in Delhi for 500 kg of ashwagandha root at Rs 450 per kg",
+  "a week of Instagram reels for my electronics shop in Bharuch",
   "a cited presentation on inflation",
   "a topic bank for my cooking channel",
   "research on the market for pet subscription boxes",
   "outreach to qualified sales prospects",
 ];
+
+/** Example chips read naturally whatever the mission type. */
+function phrase(ex: string): string {
+  if (ex.startsWith("buyers")) return `Find ${ex}`;
+  if (ex.startsWith("a week of")) return `Post ${ex}`;
+  return `Make ${ex}`;
+}
 
 const GREETINGS = ["Hi, I'm Cupi. What should we make?", "Tell me the dream in a sentence or two.", "Start with what you want to exist by next week."];
 
@@ -121,7 +130,7 @@ export function CupiIntake() {
                 <button
                   type="button"
                   key={ex}
-                  onClick={() => updateGoal(`Make ${ex}`)}
+                  onClick={() => updateGoal(phrase(ex))}
                   className="rounded-[var(--radius-pill)] border border-line bg-white/70 px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-lavender hover:bg-lavender-soft"
                 >
                   {ex}
@@ -158,7 +167,8 @@ function readOf(plan: MissionPlan): string {
   const kind: Record<string, string> = {
     website: "A website mission",
     presentation: "A presentation mission",
-    youtube: "A video channel mission",
+    social: "A social media mission",
+    buyers: "A buyer-finding mission",
     outreach: "An outreach mission",
     research: "A research mission",
   };
@@ -175,7 +185,7 @@ function readOf(plan: MissionPlan): string {
 
 /** Typewriter placeholder that cycles through examples until the person starts typing. */
 function useTypedPlaceholder(examples: string[], paused: boolean): string {
-  const [text, setText] = useState(`Make ${examples[0]}`);
+  const [text, setText] = useState(phrase(examples[0]!));
   const reduced = useRef(false);
   useEffect(() => {
     reduced.current = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -187,7 +197,7 @@ function useTypedPlaceholder(examples: string[], paused: boolean): string {
     let deleting = false;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      const full = `Make ${examples[i]!}`;
+      const full = phrase(examples[i]!);
       if (!deleting) {
         pos += 1;
         setText(full.slice(0, pos));

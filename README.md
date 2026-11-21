@@ -59,6 +59,8 @@ worker runs inside the web process. Without an LLM key every agent uses an
 - HTTP API: cookies, CSRF origin check, SSE event stream, artifact download.
 - Website generator: the generated site passes `site-check` (internal links, image alt text, one h1 per page, lang, title, viewport); a deliberately broken page fails it with every finding listed; the contact form is marked as not connected and no prices are invented.
 - Preview route: serves generated files only to the owning tenant with a script-blocking Content-Security-Policy, 404 for other tenants and unknown paths, 401 when signed out.
+- Buyer-finding mission: offer facts are parsed from the goal and answers, never guessed; the buyer map names no contacts; outreach drafts carry the seller's figures (English, Hindi or Gujarati) and placeholders only where facts are missing; lead search blocks without a data connection and the send step is skipped, never attempted, with no approval created.
+- Social mission: a reel plan in the chosen language, an approval before posting, and a `blocked` result without an Instagram or YouTube connection.
 - Full website mission: brand brief, outline, build, check, then `awaiting_review` at the approval-gated deploy step with the site files and quality review present; after approval the deploy step reports `blocked` (no hosting connection), never a fake success.
 
 ## Layout
