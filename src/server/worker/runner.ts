@@ -8,6 +8,7 @@ import { getLlmProvider } from "../llm";
 import { appendEvent } from "../missions/events";
 import { evaluateMission, scheduleReadySteps } from "../missions/service";
 import { getSkill } from "../skills/registry";
+import { openConnector } from "../connections/service";
 import type { SkillContext, SkillManifest, SkillResult, SkillUsage } from "../skills/types";
 
 export type WorkerOptions = {
@@ -314,6 +315,12 @@ async function buildContext(db: Db, step: MissionStep, goal: string, usage: Skil
         .where(and(eq(authConnections.orgId, step.orgId), eq(authConnections.provider, provider), eq(authConnections.status, "active")))
         .limit(1);
       return rows.length > 0;
+    },
+    async connector(provider) {
+      if (!manifest.permissionScopes.includes(`connection:${provider}`)) {
+        throw new Error(`Skill ${manifest.id} does not have the connection:${provider} scope`);
+      }
+      return openConnector(db, { orgId: step.orgId, missionId: step.missionId, stepId: step.id, actor: `agent:${step.agent}` }, provider);
     },
   };
 }

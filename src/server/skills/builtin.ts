@@ -173,7 +173,8 @@ export const qaReview: Skill = {
       const missing = ctx.upstream[k]?.missing;
       if (Array.isArray(missing) && missing.length) findings.push(`${k} is missing: ${missing.join(", ")}. Outreach drafts carry placeholders until these are given.`);
     }
-    if (upstreamKeys.some((k) => ctx.upstream[k]?.leadsRetrieved === 0)) {
+    const leadCounts = upstreamKeys.map((k) => Number(ctx.upstream[k]?.leadsRetrieved ?? NaN)).filter((n) => !Number.isNaN(n));
+    if (leadCounts.length && Math.max(...leadCounts) === 0) {
       findings.push("No buyer contacts have been retrieved; nothing can be sent until a data connection finds leads or you add them.");
     }
     const verdict = findings.length ? "needs_work" : "pass";

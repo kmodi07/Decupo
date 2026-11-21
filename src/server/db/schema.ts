@@ -395,16 +395,67 @@ export const authConnections = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    provider: text("provider").notNull(), // google | youtube | ...
+    provider: text("provider").notNull(), // data | mailbox | whatsapp | instagram | youtube (src/server/connections/providers.ts)
+    /** How the credential was obtained: "oauth" or "api_key". */
+    kind: text("kind").notNull().default("api_key"),
+    /** Human label shown in Connected apps (account email, masked key). Never the secret. */
+    label: text("label"),
     externalAccountId: text("external_account_id"),
     scopes: jsonb("scopes").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     /** AES-256-GCM envelope (see src/server/secrets). Never returned to clients. */
     encryptedTokens: text("encrypted_tokens").notNull(),
     status: text("status").notNull().default("active"), // active | revoked | expired
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("auth_connections_org_idx").on(t.orgId, t.provider)],
+);
+
+/**
+ * Every use of a connection: connect, scope preview, revoke, and each external
+ * call made through it (one row per message sent or post published). Holds no
+ * tokens; `detail` carries recipients, subjects and provider ids only.
+ */
+export const connectionAccessLog = pgTable(
+  "connection_access_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").references(() => authConnections.id, { onDelete: "set null" }),
+    provider: text("provider").notNull(),
+    action: text("action").notNull(), // connect | scope_preview | revoke | lead_search | send | publish | refresh
+    actor: text("actor").notNull(), // "user:<id>" | "agent:<name>" | "system"
+    missionId: uuid("mission_id").references(() => missions.id, { onDelete: "set null" }),
+    stepId: uuid("step_id").references(() => missionSteps.id, { onDelete: "set null" }),
+    outcome: text("outcome").notNull(), // ok | failed | denied
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("connection_access_log_org_idx").on(t.orgId, t.createdAt), index("connection_access_log_connection_idx").on(t.connectionId)],
+);
+
+/** Pending OAuth authorisations: the `state` ties the callback to the user who started it. */
+export const oauthStates = pgTable(
+  "oauth_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    state: text("state").notNull(),
+    /** PKCE verifier, encrypted with the secrets envelope. */
+    encryptedVerifier: text("encrypted_verifier").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("oauth_states_state_idx").on(t.state)],
 );
 
 export const notifications = pgTable(
@@ -434,6 +485,8 @@ export type MissionStep = typeof missionSteps.$inferSelect;
 export type MissionEvent = typeof missionEvents.$inferSelect;
 export type Approval = typeof approvals.$inferSelect;
 export type Artifact = typeof artifacts.$inferSelect;
+export type AuthConnection = typeof authConnections.$inferSelect;
+export type ConnectionAccessLogEntry = typeof connectionAccessLog.$inferSelect;
 export type LedgerEntry = typeof creditLedger.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type MissionStatus = Mission["status"];

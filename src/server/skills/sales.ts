@@ -1,5 +1,8 @@
 import { z } from "zod";
 import type { Skill, SkillContext } from "./types";
+import type { Connector } from "../connections/service";
+import type { Lead } from "../connections/adapters";
+import { ProviderError } from "../connections/adapters";
 
 /**
  * Buyer-finding missions: a seller says what stock they have, at what price,
@@ -9,11 +12,12 @@ import type { Skill, SkillContext } from "./types";
  *   offer-sheet       Echo   structured offer from the goal and answers
  *   buyer-map         Scout  buyer segments and channels for this product
  *   outreach-sequence Echo   per-segment email, WhatsApp and call drafts, in the seller's language
- *   lead-search       Scout  real buyer contacts: blocked without a data connection
- *   outreach-send     Echo   Tier 3: blocked without a messaging connection, approval per batch
+ *   lead-search       Scout  real buyer contacts through the connected data provider; blocked without one
+ *   outreach-send     Echo   Tier 3: one approved batch through the connected email / WhatsApp account
  *
- * Nothing here contacts anyone, invents a buyer name or quotes a price the
- * seller did not give.
+ * Nothing here invents a buyer name or quotes a price the seller did not
+ * give, and nothing leaves the workspace without a connected account and an
+ * approval row (see src/server/connections).
  */
 
 const anyRecord = z.record(z.string(), z.unknown());
@@ -391,12 +395,20 @@ export const outreachSequence: Skill = {
 // ---------------------------------------------------------------------------
 // Steps that need connections. They block honestly instead of pretending.
 // ---------------------------------------------------------------------------
+const LEAD_COLUMNS = ["segment", "organisation", "contact name", "role", "city", "channel", "email", "phone", "source", "notes"] as const;
+
+function leadRow(l: Lead): Record<(typeof LEAD_COLUMNS)[number], string | null> {
+  return { segment: l.segment, organisation: l.organisation, "contact name": l.contactName, role: l.role, city: l.city, channel: l.channel, email: l.email, phone: l.phone, source: l.source, notes: l.notes };
+}
+
+const cell = (v: string | null) => (v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+
 export const leadSearch: Skill = {
   manifest: {
     id: "lead-search",
-    version: "0.1.0",
+    version: "0.2.0",
     name: "Find buyer contacts",
-    description: "Looks up real organisations and contacts for each buyer segment. Needs a connected lead-data or web-search provider; blocked until one exists.",
+    description: "Looks up real organisations and contacts for each buyer segment through your connected lead-data provider. Returns exactly what the provider returns; blocked until one is connected.",
     agent: "Scout",
     actionClass: "read",
     permissionScopes: ["connection:data", "artifact:write"],
@@ -408,41 +420,170 @@ export const leadSearch: Skill = {
     inputSchema: anyRecord,
   },
   async run(ctx) {
-    if (!(await ctx.hasConnection("data"))) {
+    const c = await ctx.connector("data");
+    if (c.status !== "ready") {
       return {
         status: "blocked",
-        reason: "No lead-data or web-search connection is configured for this workspace. Connect one under Connected apps, or add contacts to the lead list template yourself, then retry.",
+        reason:
+          c.code === "no_connection"
+            ? "No lead-data or web-search connection is configured for this workspace. Connect one under Connected apps, or add contacts to the lead list template yourself, then retry."
+            : c.reason,
         output: { leadsRetrieved: 0 },
       };
     }
-    return { status: "blocked", reason: "Lead search is not implemented yet: the data adapter ships with the connector framework (backlog B-30).", output: { leadsRetrieved: 0 } };
+    const offer = (ctx.upstream["offer-sheet"]?.offer as Offer | undefined) ?? parseOffer(ctx.goal, ctx.input);
+    const { segments } = segmentsFor(offer.product, offer.market);
+    const limit = Math.min(Math.max(Number(ctx.input.leadLimit) || 25, 1), 100);
+    const leads = await ctx.once("lead-search", "data.searchLeads", () =>
+      c.searchLeads({ product: offer.product, market: offer.market, segments: segments.map((s) => ({ key: s.key, name: s.name, findVia: s.findVia })), limit }),
+    );
+    if (leads.length === 0) {
+      return {
+        status: "blocked",
+        reason: `The connected lead-data provider returned no contacts for ${offer.product}${offer.market ? ` in ${offer.market}` : ""}. Add contacts to the lead list template yourself, then retry.`,
+        output: { leadsRetrieved: 0, source: c.mode },
+      };
+    }
+    const mock = c.mode === "mock";
+    const md = [
+      `# Lead list: ${offer.product}${offer.market ? ` in ${offer.market}` : ""}`,
+      "",
+      `${leads.length} contact${leads.length === 1 ? "" : "s"} from ${c.label ?? "the connected provider"}, as returned. Nothing was added or guessed.`,
+      "",
+      mock ? "> Test data from the mock adapter. These are not real buyers; nothing should be sent to them outside a test." : "> Check the provider's terms before contacting anyone on this list.",
+      "",
+      `| ${LEAD_COLUMNS.join(" | ")} |`,
+      `|${LEAD_COLUMNS.map(() => "---").join("|")}|`,
+      ...leads.map((l) => {
+        const r = leadRow(l);
+        return `| ${LEAD_COLUMNS.map((k) => cell(r[k])).join(" | ")} |`;
+      }),
+      "",
+    ].join("\n");
+    const a = await ctx.writeArtifact({ kind: "markdown", title: "Lead list", content: md });
+    const j = await ctx.writeArtifact({ kind: "json", title: "Lead list (data)", content: JSON.stringify({ columns: LEAD_COLUMNS, rows: leads.map(leadRow) }, null, 2) });
+    return {
+      status: "succeeded",
+      output: { artifactId: a.id, leadsArtifactId: j.id, leadsRetrieved: leads.length, leads, source: c.mode, mock },
+      summary: `${leads.length} buyer contact${leads.length === 1 ? "" : "s"} found${mock ? " (mock adapter, test data)" : ""}.`,
+    };
   },
 };
+
+type SendOutcome = { to: string; channel: "email" | "whatsapp"; segment: string; status: "sent" | "failed"; providerMessageId: string | null; error: string | null };
+type ReadyConnector = Extract<Connector, { status: "ready" }>;
+type MissingConnector = Extract<Connector, { status: "needs_connection" }>;
+
+const MAX_BATCH = 25;
+
+function noSendReason(mail: Connector, wa: Connector): string {
+  const missing = [mail, wa].filter((c): c is MissingConnector => c.status !== "ready");
+  if (missing.every((c) => c.code === "no_connection")) return "No email or messaging connection is configured for this workspace. Connect one under Connected apps, then retry.";
+  return missing.map((c) => c.reason).join(" ");
+}
 
 export const outreachSend: Skill = {
   manifest: {
     id: "outreach-send",
-    version: "0.1.0",
+    version: "0.2.0",
     name: "Send outreach",
     description:
       "Sends the approved drafts to the found contacts from your own connected email or WhatsApp account, one batch per approval. Always requires approval; blocked until a messaging connection exists.",
     agent: "Echo",
     actionClass: "external_contact",
-    permissionScopes: ["connection:mailbox", "artifact:write"],
+    permissionScopes: ["connection:mailbox", "connection:whatsapp", "artifact:write", "artifact:read"],
     privacy: "third_party",
     cost: { baseCredits: 10, variableAllowanceCredits: 0, creditsPerThousandTokens: 0 },
     timeoutMs: 120_000,
-    maxAttempts: 1,
+    maxAttempts: 2, // each message is journaled through once(); a retry never resends
     availability: "needs_connection",
     inputSchema: anyRecord,
   },
   async run(ctx: SkillContext) {
-    const leads = Number(ctx.upstream["lead-search"]?.leadsRetrieved ?? 0);
-    if (leads === 0) return { status: "blocked", reason: "There are no buyer contacts to send to yet.", output: { sent: 0 } };
-    if (!(await ctx.hasConnection("mailbox"))) {
-      return { status: "blocked", reason: "No email or messaging connection is configured for this workspace. Connect one under Connected apps, then retry.", output: { sent: 0 } };
+    const leads = (ctx.upstream["lead-search"]?.leads as Lead[] | undefined) ?? [];
+    if (leads.length === 0) return { status: "blocked", reason: "There are no buyer contacts to send to yet.", output: { sent: 0 } };
+    const mail = await ctx.connector("mailbox");
+    const wa = await ctx.connector("whatsapp");
+    if (mail.status !== "ready" && wa.status !== "ready") return { status: "blocked", reason: noSendReason(mail, wa), output: { sent: 0 } };
+
+    const offer = (ctx.upstream["offer-sheet"]?.offer as Offer | undefined) ?? parseOffer(ctx.goal, ctx.input);
+    const { segments } = segmentsFor(offer.product, offer.market);
+    // The drafts the user saw and approved; recomputed from the same inputs only if the artifact is gone.
+    let drafts: Draft[] | null = null;
+    const draftsId = ctx.upstream["outreach-sequence"]?.draftsArtifactId;
+    if (typeof draftsId === "string") {
+      const art = await ctx.readArtifact(draftsId);
+      if (art?.contentText) {
+        try {
+          drafts = JSON.parse(art.contentText) as Draft[];
+        } catch {
+          drafts = null;
+        }
+      }
     }
-    return { status: "blocked", reason: "Sending is not implemented yet: the messaging adapter ships with the connector framework (backlog B-30).", output: { sent: 0 } };
+    const approved: Draft[] = drafts ?? draftsFor(offer, segments);
+    const draftFor = (segment: string) => approved.find((d) => d.segment === segment) ?? approved[0]!;
+
+    const plan = leads.map((l) => {
+      const via: "email" | "whatsapp" | null = l.email && mail.status === "ready" ? "email" : l.phone && wa.status === "ready" ? "whatsapp" : null;
+      return { lead: l, via };
+    });
+    const reachable = plan.filter((p): p is { lead: Lead; via: "email" | "whatsapp" } => p.via !== null);
+    const unreachable = plan.length - reachable.length;
+    if (reachable.length === 0) {
+      const connected = [mail, wa].filter((c): c is ReadyConnector => c.status === "ready").map((c) => c.provider);
+      return {
+        status: "blocked",
+        reason: `None of the ${leads.length} contacts can be reached through the connected accounts (${connected.join(", ") || "none"}).`,
+        output: { sent: 0, unreachable },
+      };
+    }
+    const batch = reachable.slice(0, MAX_BATCH);
+    const results: SendOutcome[] = [];
+    for (const [i, { lead, via }] of batch.entries()) {
+      const draft = draftFor(lead.segment);
+      const to = via === "email" ? lead.email! : lead.phone!;
+      const msg = via === "email" ? { channel: "email" as const, to, subject: draft.email.subject, body: draft.email.body } : { channel: "whatsapp" as const, to, subject: null, body: draft.whatsapp };
+      const connector = (via === "email" ? mail : wa) as ReadyConnector;
+      // Exactly once per recipient across retries. A provider rejection (4xx) is a
+      // recorded outcome; an outage (5xx / network) throws so the step retries and
+      // the journal replays the messages that did go out.
+      const outcome = await ctx.once(`send:${i}:${via}:${to}`, `${connector.provider}.sendMessage`, async (): Promise<SendOutcome> => {
+        try {
+          const r = await connector.sendMessage(msg);
+          return { to, channel: via, segment: lead.segment, status: "sent", providerMessageId: r.providerMessageId, error: null };
+        } catch (err) {
+          if (err instanceof ProviderError && err.status !== undefined && err.status < 500) {
+            return { to, channel: via, segment: lead.segment, status: "failed", providerMessageId: null, error: err.message };
+          }
+          throw err;
+        }
+      });
+      results.push(outcome);
+    }
+    const sent = results.filter((r) => r.status === "sent").length;
+    const failed = results.length - sent;
+    const remaining = reachable.length - batch.length;
+    const mock = [mail, wa].some((c) => c.status === "ready" && c.mode === "mock");
+    const md = [
+      `# Send report: ${offer.product}`,
+      "",
+      `${sent} of ${results.length} messages sent${failed ? `, ${failed} rejected by the provider` : ""}${unreachable ? `, ${unreachable} contact${unreachable === 1 ? "" : "s"} had no channel you have connected` : ""}${remaining ? `, ${remaining} left for the next approved batch` : ""}.`,
+      "",
+      mock ? "> Sent through the mock adapter: nothing reached a real person." : "> Sent from your own connected account. Each message is in the access log under Connected apps.",
+      "",
+      "| to | channel | segment | result |",
+      "|---|---|---|---|",
+      ...results.map((r) => `| ${cell(r.to)} | ${r.channel} | ${cell(r.segment)} | ${r.status === "sent" ? `sent${r.providerMessageId ? ` (${r.providerMessageId})` : ""}` : `failed: ${cell(r.error)}`} |`),
+      "",
+    ].join("\n");
+    const a = await ctx.writeArtifact({ kind: "markdown", title: "Send report", content: md });
+    if (sent === 0) throw new Error(`The provider rejected every message in the batch: ${results[0]?.error ?? "unknown error"}`);
+    return {
+      status: "succeeded",
+      output: { artifactId: a.id, sent, failed, attempted: results.length, unreachable, remaining, batchSize: MAX_BATCH, partial: failed > 0 || remaining > 0, results, mock },
+      summary: `${sent} of ${results.length} messages sent${failed ? `, ${failed} failed` : ""}${remaining ? `, ${remaining} waiting for the next batch` : ""}${mock ? " (mock adapter)" : ""}.`,
+    };
   },
 };
 

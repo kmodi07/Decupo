@@ -135,7 +135,7 @@ describe("buyer-finding mission", () => {
     expect(offer).toContain("| Asking price | to be confirmed |");
   });
 
-  it("with a data connection but no leads, sending still reports blocked after approval rather than pretending", async () => {
+  it("with a data connection but no adapter enabled on this server, lead search blocks and sending is never attempted", async () => {
     const t = await makeTenant(h, { credits: 1000 });
     await h.db.insert(authConnections).values({ orgId: t.org.id, userId: t.user.id, provider: "data", status: "active", encryptedTokens: "test" });
     const { mission } = await createMission(h.db, t.ctx, { goal: GOAL });
@@ -143,7 +143,7 @@ describe("buyer-finding mission", () => {
     await drain(h.db);
     const lead = (await listSteps(h.db, t.ctx, mission.id)).find((s) => s.key === "lead-search")!;
     expect(lead.status).toBe("blocked");
-    expect(lead.error).toMatch(/not implemented yet/);
+    expect(lead.error).toMatch(/not enabled on this server/);
     const send = (await listSteps(h.db, t.ctx, mission.id)).find((s) => s.key === "outreach-send")!;
     expect(send.status).toBe("skipped");
     await h.db.delete(authConnections).where(eq(authConnections.orgId, t.org.id));

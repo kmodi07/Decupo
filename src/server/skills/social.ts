@@ -1,17 +1,19 @@
 import { z } from "zod";
 import type { Skill } from "./types";
+import type { Connector } from "../connections/service";
 import { detectLanguage, type Language } from "./sales";
 
 /**
  * Social missions for a local business (for example an electronics agency
  * that wants Instagram reels): what sells locally, a week of reels, an
- * independent review, then posting, which needs the account connection and
- * approval per reel. Nothing is rendered or posted here.
+ * independent review, then posting one approved reel through the connected
+ * Instagram or YouTube account. Nothing is rendered here: the video comes from
+ * a public link the user gives.
  */
 
 const anyRecord = z.record(z.string(), z.unknown());
 
-type ReelSlot = { day: number; angle: string; hook: string; shots: string[]; caption: string; cta: string };
+export type ReelSlot = { day: number; angle: string; hook: string; shots: string[]; caption: string; cta: string };
 
 const LANG_LABEL: Record<Language, string> = { en: "English", hi: "Hindi", gu: "Gujarati" };
 
@@ -103,27 +105,85 @@ export const reelPlanSkill: Skill = {
   },
 };
 
+type ReadyConnector = Extract<Connector, { status: "ready" }>;
+type MissingConnector = Extract<Connector, { status: "needs_connection" }>;
+
 export const socialPublish: Skill = {
   manifest: {
     id: "social-publish",
-    version: "0.1.0",
+    version: "0.2.0",
     name: "Post to Instagram or YouTube",
-    description: "Posts an approved reel from your own connected account. Always requires approval, one reel at a time; blocked until the account is connected and video rendering exists.",
+    description:
+      "Posts one approved reel from your own connected account using the video link you gave. Always requires approval, one reel at a time; blocked until the account is connected. YouTube uploads stay private until you change them.",
     agent: "Pulse",
     actionClass: "publish",
-    permissionScopes: ["connection:mailbox", "artifact:write"],
+    permissionScopes: ["connection:instagram", "connection:youtube", "artifact:write", "artifact:read"],
     privacy: "third_party",
     cost: { baseCredits: 10, variableAllowanceCredits: 0, creditsPerThousandTokens: 0 },
-    timeoutMs: 120_000,
+    timeoutMs: 180_000,
     maxAttempts: 1,
     availability: "needs_connection",
     inputSchema: anyRecord,
   },
   async run(ctx) {
-    if (!(await ctx.hasConnection("instagram")) && !(await ctx.hasConnection("youtube"))) {
-      return { status: "blocked", reason: "No Instagram or YouTube connection is configured for this workspace. Connect the account under Connected apps, then retry.", output: { posted: 0 } };
+    const ig = await ctx.connector("instagram");
+    const yt = await ctx.connector("youtube");
+    const target = [ig, yt].find((c): c is ReadyConnector => c.status === "ready");
+    if (!target) {
+      const notEnabled = [ig, yt].filter((c): c is MissingConnector => c.status !== "ready" && c.code === "not_enabled");
+      return {
+        status: "blocked",
+        reason: notEnabled.length ? notEnabled.map((c) => c.reason).join(" ") : "No Instagram or YouTube connection is configured for this workspace. Connect the account under Connected apps, then retry.",
+        output: { posted: 0 },
+      };
     }
-    return { status: "blocked", reason: "Posting is not implemented yet: video rendering and the publishing adapter ship with the connector framework (backlog B-30, B-31).", output: { posted: 0 } };
+    const videoUrl = typeof ctx.input.videoUrl === "string" ? ctx.input.videoUrl.trim() : "";
+    if (!/^https?:\/\/\S+$/i.test(videoUrl)) {
+      return {
+        status: "blocked",
+        reason: 'No video to post: Decupo does not render video yet. Give a public link to the reel you shot (the "videoUrl" answer) when creating the mission, then retry.',
+        output: { posted: 0, platform: target.provider },
+      };
+    }
+    const planOut = ctx.upstream["reel-plan"] ?? {};
+    let reel: ReelSlot | null = null;
+    if (typeof planOut.planArtifactId === "string") {
+      const art = await ctx.readArtifact(planOut.planArtifactId);
+      try {
+        reel = (JSON.parse(art?.contentText ?? "{}") as { reels?: ReelSlot[] }).reels?.[0] ?? null;
+      } catch {
+        reel = null;
+      }
+    }
+    if (!reel) {
+      const { business, place, products } = businessFromGoal(ctx.goal, ctx.input);
+      reel = reelPlan(business, place, products, detectLanguage(ctx.goal, typeof ctx.input.language === "string" ? ctx.input.language : null))[0]!;
+    }
+    const first: ReelSlot = reel;
+    const business = typeof planOut.business === "string" ? planOut.business : businessFromGoal(ctx.goal, ctx.input).business;
+    const title = `${business}: ${first.angle}`;
+    const res = await ctx.once("publish:1", `${target.provider}.publishReel`, () => target.publishReel({ videoUrl, caption: first.caption, title }));
+    const mock = target.mode === "mock";
+    const md = [
+      `# Post record: ${title}`,
+      "",
+      `Posted to ${target.provider} (${target.label ?? "connected account"}) with your approval.`,
+      "",
+      `- Post id: ${res.postId}`,
+      `- Link: ${res.url ?? "not returned by the provider"}`,
+      `- Visibility: ${res.visibility ?? "as set by the provider"}`,
+      `- Video: ${videoUrl}`,
+      `- Caption: ${first.caption}`,
+      "",
+      mock ? "> Published through the mock adapter: nothing reached a real account." : target.provider === "youtube" ? "> Uploaded as private. Change the visibility on YouTube when you are ready." : "> The reel is live on your account.",
+      "",
+    ].join("\n");
+    const a = await ctx.writeArtifact({ kind: "markdown", title: "Post record", content: md });
+    return {
+      status: "succeeded",
+      output: { artifactId: a.id, posted: 1, platform: target.provider, postId: res.postId, url: res.url, visibility: res.visibility, mock },
+      summary: `1 reel posted to ${target.provider}${res.visibility === "private" ? " (private)" : ""}${mock ? " (mock adapter)" : ""}.`,
+    };
   },
 };
 
