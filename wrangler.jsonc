@@ -1,0 +1,24 @@
+﻿{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "decupo-app",
+  // Custom entry: wraps the OpenNext fetch handler and adds the cron step runner.
+  "main": "./worker.ts",
+  "compatibility_date": "2026-11-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  // The step runner: drains queued jobs that the request-time kick did not finish.
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "NEXTJS_ENV": "production",
+    "CLOUDFLARE_WORKER": "1",
+    "DATABASE_DRIVER": "neon",
+    "WORKER_INLINE": "false",
+    "LLM_PROVIDER": "mock",
+    "SIGNUP_GRANT_CREDITS": "100",
+    // Must match the public hostname or every POST is rejected by the origin check.
+    "APP_ORIGIN": "https://decupo-app.transcreve.workers.dev"
+  }
+  // Secrets (set with `wrangler secret put`): DATABASE_URL (Neon), SESSION_SECRET, SECRETS_MASTER_KEY.
+}

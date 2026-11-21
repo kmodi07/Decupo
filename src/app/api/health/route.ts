@@ -11,6 +11,9 @@ export async function GET() {
     const jobs = await countByStatus(h.db);
     return json({ ok: true, driver: h.driver, jobs, llm: llmStatus(), workerInline: (globalThis as { __decupoWorker?: boolean }).__decupoWorker === true });
   } catch (err) {
-    return json({ ok: false, error: String((err as Error).message ?? err) }, { status: 503 });
+    // Surface the cause chain (driver errors are wrapped by the query layer); never the connection string.
+    const chain: string[] = [];
+    for (let e: unknown = err; e && chain.length < 4; e = (e as { cause?: unknown }).cause) chain.push(String((e as Error).message ?? e));
+    return json({ ok: false, error: chain.join(" <- ") }, { status: 503 });
   }
 }

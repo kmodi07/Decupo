@@ -43,6 +43,12 @@ worker runs inside the web process. Without an LLM key every agent uses an
   `npm run worker` (one or more) with `WORKER_INLINE=false`.
 - Set real `SESSION_SECRET` and `SECRETS_MASTER_KEY` values.
 
+### Cloudflare Workers
+
+The app is deployed to Cloudflare Workers (OpenNext) with Postgres on Neon:
+`npm run cf:build` then `npx wrangler deploy`. See `docs/DEPLOY_CLOUDFLARE.md`
+for secrets, migrations and the step runner's cron.
+
 ## Scripts
 
 | Command | What it does |
@@ -54,6 +60,8 @@ worker runs inside the web process. Without an LLM key every agent uses an
 | `npm run db:generate` | Generate SQL migrations from `src/server/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations with the configured driver |
 | `npm run worker` | Standalone worker (requires `DATABASE_DRIVER=pg`) |
+| `npm run cf:build` | Build the Cloudflare Worker bundle (Windows-safe) |
+| `npm run cf:deploy` | Build and deploy to Cloudflare Workers |
 
 ## What is tested
 

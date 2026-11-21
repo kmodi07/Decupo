@@ -42,6 +42,9 @@
   "exclude": [
     "node_modules",
     ".next",
-    "drizzle"
+    "drizzle",
+    ".open-next",
+    ".claude",
+    ".wrangler"
   ]
 }

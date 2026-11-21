@@ -125,7 +125,7 @@ Trigger: checkout failures, webhook failures, or the transcription service unrea
 
 ## 8. Open items for the build team
 
-- **Hosting choice for Decupo.** The account already runs on Cloudflare Workers, but Decupo as built needs a long-running Node worker (PGlite or `pg` with a polling loop) and a PostgreSQL server. Options: a Node host for the app plus managed Postgres, or a port to Workers (OpenNext) with Hyperdrive to Postgres and the step runner moved to Cloudflare Queues or Workflows. Decide before section 5; this affects what the apex points at.
+- **Hosting choice for Decupo: decided (2026-11-21).** Decupo runs on Cloudflare Workers through OpenNext as the Worker `decupo-app`, with Postgres on Neon reached through the Neon serverless driver, and the step runner split into a request-time kick plus a one-minute cron. It is live at `https://decupo-app.transcreve.workers.dev` only; see `DEPLOY_CLOUDFLARE.md`. Section 5 would point the apex at this Worker.
 - **Billing.** Decupo has no billing yet (backlog B-40). Paddle is live in this account with webhook verification already implemented in the transcription Worker; D5 decides whether to reuse it.
 - `APP_ORIGIN` must match the final hostname or every POST is rejected by the origin check.
 - Naming (D4) should be settled before any customer email mentions "Decupo".
