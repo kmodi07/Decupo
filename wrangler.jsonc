@@ -16,7 +16,7 @@
     "DATABASE_DRIVER": "neon",
     "WORKER_INLINE": "false",
     "LLM_PROVIDER": "mock",
-    "SIGNUP_GRANT_CREDITS": "100",
+    "SIGNUP_GRANT_CREDITS": "500",
     // Must match the public hostname or every POST is rejected by the origin check.
     "APP_ORIGIN": "https://decupo-app.transcreve.workers.dev"
   }

@@ -15,7 +15,7 @@ export default async function SignupPage() {
       <div className="my-auto py-10">
         <CupiMark size={72} className="mb-4" />
         <h1 className="text-[32px] font-bold tracking-tight">Meet Cupi</h1>
-        <p className="mb-6 mt-1 text-[15px] text-mute">You start with 100 Explore credits. No card, no connections, nothing runs without your go-ahead.</p>
+        <p className="mb-6 mt-1 text-[15px] text-mute">You start with 500 Explore credits. No card, no connections, nothing runs without your go-ahead.</p>
         <Card>
           <Suspense>
             <AuthForm mode="signup" />

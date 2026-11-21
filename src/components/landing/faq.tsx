@@ -9,7 +9,7 @@ const QA: Array<[string, string]> = [
   ],
   [
     "What does it cost?",
-    "Every new account starts with 100 Explore credits. A mission reserves its estimate, each step settles what it really used, and the rest comes back. Paid plans are not final yet.",
+    "Every new account starts with 500 Explore credits. A mission reserves its estimate, each step settles what it really used, and the rest comes back. Paid plans are not final yet.",
   ],
   [
     "What can it actually do today?",

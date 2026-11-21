@@ -170,7 +170,7 @@ export function CupiIntake() {
                   </fieldset>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-[14px] text-ink">Sign up to run this with 100 free credits. Your goal and answers come with you.</span>
+                  <span className="text-[14px] text-ink">Sign up to run this with 500 free credits. Your goal and answers come with you.</span>
                   <LinkButton href={signupHref(goal, answers)}>Create my account</LinkButton>
                 </div>
               </div>

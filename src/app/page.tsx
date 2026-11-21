@@ -141,7 +141,7 @@ export default async function Landing() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-[13px] text-mute sm:flex-row sm:items-center sm:justify-between">
           <span>Decupo is a working name and has not been cleared for trademark or domain use.</span>
-          <span>Every new account starts with 100 Explore credits. Paid plans are not final.</span>
+          <span>Every new account starts with 500 Explore credits. Paid plans are not final.</span>
         </div>
       </footer>
     </main>
