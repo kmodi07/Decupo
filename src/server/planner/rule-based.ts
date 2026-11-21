@@ -28,6 +28,7 @@ const TEMPLATES: Template[] = [
     ],
     questions: [
       { key: "brandName", prompt: "What is the business or project called?", required: false },
+      { key: "look", prompt: "Any colours or a look you have in mind?", required: false },
       { key: "audience", prompt: "Who is the site for?", required: false },
       { key: "tone", prompt: "Any words that describe the tone you want?", required: false },
     ],

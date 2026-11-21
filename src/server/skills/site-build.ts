@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Skill } from "./types";
-import { brandNameFromGoal, generateSite, parseBrief, type SitemapEntry } from "./site/generate";
+import { brandNameFromGoal, generateSite, parseBrief, type BriefSections, type SitemapEntry } from "./site/generate";
+import { deriveTheme } from "./site/theme";
 
 const sitemapSchema = z.object({ pages: z.array(z.object({ title: z.string(), path: z.string() })).min(1) });
 
@@ -42,7 +43,7 @@ export const siteBuild: Skill = {
     }
 
     const briefOut = ctx.upstream["brand-brief"];
-    let brief = {};
+    let brief: BriefSections = {};
     let offline = false;
     if (typeof briefOut?.artifactId === "string") {
       const art = await ctx.readArtifact(briefOut.artifactId);
@@ -51,7 +52,10 @@ export const siteBuild: Skill = {
     if (briefOut?.mock === true || outline?.mock === true) offline = true;
 
     const brandName = typeof ctx.input.brandName === "string" && ctx.input.brandName.trim() ? ctx.input.brandName.trim() : brandNameFromGoal(ctx.goal);
-    const files = generateSite({ brandName, goal: ctx.goal, pages, brief, offline, tagline: typeof ctx.input.tagline === "string" ? ctx.input.tagline : undefined });
+    const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+    // The look is derived deterministically from what the user and the brief said; the source is reported, never guessed silently.
+    const theme = deriveTheme({ look: str(ctx.input.look), visual: brief.visual, tone: str(ctx.input.tone), goal: ctx.goal });
+    const files = generateSite({ brandName, goal: ctx.goal, pages, brief, offline, tagline: str(ctx.input.tagline), theme });
 
     const artifactIds: string[] = [];
     const written: Array<{ path: string; artifactId: string; bytes: number }> = [];
@@ -64,8 +68,12 @@ export const siteBuild: Skill = {
       artifactIds.push(saved.artifactId);
       written.push({ path: f.path, ...saved });
     }
-    await ctx.log(`Generated ${files.length} files for ${pages.length} pages.`, { files: written.map((w) => w.path) });
+    await ctx.log(`Generated ${files.length} files for ${pages.length} pages. ${theme.description}`, {
+      files: written.map((w) => w.path),
+      theme: { palette: theme.palette, type: theme.type, shape: theme.shape, source: theme.source },
+    });
 
+    const base = `Static site generated: ${pages.length} pages, ${files.length} files.`;
     return {
       status: "succeeded",
       output: {
@@ -75,11 +83,10 @@ export const siteBuild: Skill = {
         pageCount: pages.length,
         brandName,
         generator: "template",
+        theme: { palette: theme.palette, type: theme.type, shape: theme.shape, source: theme.source, description: theme.description },
         mock: offline,
       },
-      summary: offline
-        ? `Static site generated: ${pages.length} pages, ${files.length} files. Copy is an offline draft from templates.`
-        : `Static site generated: ${pages.length} pages, ${files.length} files.`,
+      summary: offline ? `${base} Copy is an offline draft from templates. ${theme.description}` : `${base} ${theme.description}`,
     };
   },
 };

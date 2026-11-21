@@ -3,8 +3,10 @@ import type { DbHandle } from "@/server/db/client";
 import { closeTestDb, makeTenant, makeTestDb } from "./helpers/db";
 import { brandNameFromGoal, CONTACT_FORM_NOTICE, generateSite, parseBrief, type SiteFile } from "@/server/skills/site/generate";
 import { checkSite, renderReport, resolveHref } from "@/server/skills/site/check";
+import { contrastRatio, customPalette, deriveTheme, hexToHsl, hslToHex, TYPE_STACKS } from "@/server/skills/site/theme";
 import { authorizeMission, createMission, decideApproval, getMission, listApprovals, listArtifacts, listSteps } from "@/server/missions/service";
 import { drain } from "@/server/worker/runner";
+import { listEvents } from "@/server/missions/events";
 import { getBalance } from "@/server/ledger/service";
 import { POST as signup } from "@/app/api/auth/signup/route";
 import { POST as createMissionRoute } from "@/app/api/missions/route";
@@ -141,6 +143,77 @@ describe("site checker (pure)", () => {
   });
 });
 
+describe("site theme (pure)", () => {
+  const goal = "Build a website for my consulting firm";
+
+  it("falls back to navy when nothing describes a look, and reports that", () => {
+    const t = deriveTheme({ goal: "Make me a website" });
+    expect(t).toMatchObject({ palette: "navy", type: "sans", shape: "regular", source: "default" });
+    expect(t.description).toContain("nothing in the brief or answers described a look");
+  });
+
+  it("uses an explicit hex colour as the accent and builds the rest of the palette from it", () => {
+    const t = deriveTheme({ look: "our brand colour is #7a1f33", goal });
+    expect(t.palette).toBe("custom");
+    expect(t.source).toBe("look");
+    expect(t.colors.accent.startsWith("#")).toBe(true);
+    expect(Math.round(hexToHsl(t.colors.accent).h)).toBe(Math.round(hexToHsl("#7a1f33").h));
+    expect(Math.round(hexToHsl(t.colors.brand).h)).toBe(Math.round(hexToHsl("#7a1f33").h));
+    expect(t.description).toContain("#7a1f33");
+  });
+
+  it("maps colour words and mood words to palettes", () => {
+    expect(deriveTheme({ look: "mostly teal please", goal }).palette).toBe("custom");
+    // Teal is darkened slightly so white text stays readable, but it keeps its hue.
+    expect(Math.round(hexToHsl(deriveTheme({ look: "mostly teal please", goal }).colors.accent).h)).toBe(Math.round(hexToHsl("#0f8b8d").h));
+    expect(deriveTheme({ look: "warm terracotta, rounded", goal })).toMatchObject({ palette: "earth", shape: "soft", type: "serif", source: "look" });
+    expect(deriveTheme({ look: "luxury, minimal, black and gold", goal })).toMatchObject({ palette: "luxury", shape: "sharp", type: "serif" });
+    expect(deriveTheme({ look: "bold and playful for kids", goal })).toMatchObject({ palette: "playful", shape: "soft", type: "sans" });
+    expect(deriveTheme({ look: "technical, monospace feel", goal }).type).toBe("mono");
+  });
+
+  it("prefers the look answer over the brief, the brief over tone, and tone over the goal", () => {
+    expect(deriveTheme({ look: "forest green", visual: "pastel pink", tone: "luxurious", goal: "Website for my pottery studio" }).source).toBe("look");
+    expect(deriveTheme({ visual: "pastel pink", tone: "luxurious", goal: "Website for my pottery studio" })).toMatchObject({ palette: "blush", source: "brief" });
+    expect(deriveTheme({ tone: "luxurious", goal: "Website for my pottery studio" })).toMatchObject({ palette: "luxury", source: "tone" });
+    expect(deriveTheme({ goal: "Website for my pottery studio" })).toMatchObject({ palette: "earth", source: "goal" });
+    expect(deriveTheme({ goal: "Website for my law practice" })).toMatchObject({ palette: "navy", source: "goal" });
+  });
+
+  it("keeps white text readable on any custom accent", () => {
+    for (const hex of ["#ffff00", "#bff3e0", "#ff69b4", "#00ffff", "#123456", "#c8c8c8"]) {
+      const p = customPalette(hex);
+      expect(contrastRatio(p.accent, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(p.brand, p.onBrand)).toBeGreaterThanOrEqual(7);
+    }
+    const round = hexToHsl(hslToHex(210, 0.5, 0.5));
+    expect(Math.round(round.h)).toBe(210);
+    expect(round.s).toBeCloseTo(0.5, 1);
+    expect(round.l).toBeCloseTo(0.5, 1);
+  });
+
+  it("writes the theme into the generated stylesheet and markup, and the checks still pass", () => {
+    const base = { brandName: "Clay & Kiln", goal: "Build a website for my pottery studio", pages: PAGES, offline: true };
+    const earth = generateSite({ ...base, look: "warm terracotta, rounded" });
+    const navy = generateSite({ ...base, look: "#2f5bea, clean and modern, sharp" });
+    const cssEarth = earth.find((f) => f.path === "styles.css")!.content;
+    const cssNavy = navy.find((f) => f.path === "styles.css")!.content;
+    expect(cssEarth).toContain("--accent: #b85c38;");
+    expect(cssEarth).toContain("--radius-l: 28px;");
+    expect(cssEarth).toContain(`--font-display: ${TYPE_STACKS.serif};`);
+    expect(cssEarth).toContain("Look: warm earth tones");
+    expect(cssNavy).toContain("--radius-l: 6px;");
+    expect(cssNavy).toContain(`--font-display: ${TYPE_STACKS.sans};`);
+    expect(cssNavy).not.toBe(cssEarth);
+    expect(cssEarth).not.toMatch(/--(navy|cobalt|mint|porcelain|paper)\b/);
+    const home = earth.find((f) => f.path === "index.html")!.content;
+    expect(home).toContain('<meta name="theme-color" content="#3a2a22">');
+    expect(home).toContain('stop-color="#f1c27d"');
+    expect(checkSite(earth, { offlineCopy: true }).verdict).toBe("pass");
+    expect(checkSite(navy, { offlineCopy: true }).verdict).toBe("pass");
+  });
+});
+
 describe("website mission end to end", () => {
   let h: DbHandle;
   beforeAll(async () => {
@@ -152,8 +225,9 @@ describe("website mission end to end", () => {
     const t = await makeTenant(h, { credits: 1000 });
     const { mission, plan } = await createMission(h.db, t.ctx, {
       goal: "Build me a beautiful website for my tutoring company",
-      answers: { brandName: "Bright Tutors" },
+      answers: { brandName: "Bright Tutors", look: "warm terracotta, rounded" },
     });
+    expect(plan.questions.map((q) => q.key)).toContain("look");
     expect(plan.templateId).toBe("website");
     expect(plan.steps.map((s) => s.key)).toEqual(["brand-brief", "site-outline", "site-build", "site-check", "deploy-preview"]);
     expect(plan.capabilities.find((c) => c.label.startsWith("Generated site code"))?.status).toBe("supported");
@@ -180,7 +254,19 @@ describe("website mission end to end", () => {
     expect(siteFiles[0]!.contentText).toContain("<h1>Bright Tutors</h1>");
 
     const build = steps.find((s) => s.key === "site-build")!;
-    expect(build.output).toMatchObject({ pageCount: 5, entry: "index.html", brandName: "Bright Tutors", mock: true });
+    expect(build.output).toMatchObject({
+      pageCount: 5,
+      entry: "index.html",
+      brandName: "Bright Tutors",
+      mock: true,
+      theme: { palette: "earth", shape: "soft", source: "look" },
+    });
+    expect(siteFiles.find((a) => a.path === "styles.css")!.contentText).toContain("--accent: #b85c38;");
+    // The step summary names the look and where it came from, so the mission log never hides the choice.
+    const events = await listEvents(h.db, t.org.id, mission.id);
+    const buildDone = events.find((ev) => ev.type === "step.succeeded" && (ev.payload as { key?: string }).key === "site-build");
+    expect(String((buildDone!.payload as { summary?: string }).summary)).toContain("Look: warm earth tones");
+    expect(String((buildDone!.payload as { summary?: string }).summary)).toContain("your answer about the look");
     expect((build.output!.artifactIds as string[]).sort()).toEqual(siteFiles.map((a) => a.id).sort());
 
     const check = steps.find((s) => s.key === "site-check")!;
