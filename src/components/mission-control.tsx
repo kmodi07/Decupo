@@ -115,6 +115,11 @@ export function MissionControl({ id }: { id: string }) {
   }
   const { mission, steps, approvals, artifacts, credits } = detail;
   const plan = mission.plan as unknown as MissionPlan;
+  // Generated site files form a file tree (they carry a path); everything else is a document.
+  const siteFiles = artifacts.filter((a) => a.path);
+  const documents = artifacts.filter((a) => !a.path);
+  const checkStep = steps.find((s) => s.skillId === "site-check" && s.status === "succeeded");
+  const siteVerdict = typeof checkStep?.output?.verdict === "string" ? (checkStep.output.verdict as string) : null;
   const pending = approvals.filter((a) => a.status === "pending");
   const canAuthorize = mission.status === "awaiting_authorization" || mission.status === "estimated";
   const canPause = ["queued", "running", "awaiting_review"].includes(mission.status);
@@ -233,11 +238,14 @@ export function MissionControl({ id }: { id: string }) {
             {artifacts.length === 0 ? (
               <p className="mt-2 text-[14px] text-mute">Nothing produced yet. Deliverables appear here as steps finish.</p>
             ) : (
-              <ul className="mt-3 divide-y divide-line">
-                {artifacts.map((a) => (
-                  <ArtifactRow key={a.id} artifact={a} />
-                ))}
-              </ul>
+              <>
+                {siteFiles.length > 0 && <SitePreview missionId={id} files={siteFiles} verdict={siteVerdict} />}
+                <ul className="mt-3 divide-y divide-line">
+                  {documents.map((a) => (
+                    <ArtifactRow key={a.id} artifact={a} />
+                  ))}
+                </ul>
+              </>
             )}
           </Card>
         </div>
@@ -372,6 +380,47 @@ function ApprovalRow({ approval, busy, onDecide }: { approval: Approval; busy: s
   );
 }
 
+function SitePreview({ missionId, files, verdict }: { missionId: string; files: Omit<Artifact, "contentText">[]; verdict: string | null }) {
+  const [open, setOpen] = useState(false);
+  const pages = files.filter((f) => f.kind === "html").length;
+  const previewHref = `/api/missions/${missionId}/preview/index.html`;
+  return (
+    <div className="mt-3 rounded-[14px] border border-line bg-cream-deep/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <AgentBadge name="Forge" size="sm" />
+          <span className="text-[15px] font-semibold">Website</span>
+          <span className="text-[12.5px] text-mute">
+            {pages} page{pages === 1 ? "" : "s"}, {files.length} files
+          </span>
+          {verdict && <Pill tone={verdict === "pass" ? "done" : "blocked"}>{verdict === "pass" ? "Checks passed" : "Needs work"}</Pill>}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" className="px-3 py-1.5 text-[13.5px]" onClick={() => setOpen((o) => !o)}>
+            {open ? "Hide files" : "Files"}
+          </Button>
+          <a
+            className="inline-flex items-center rounded-[var(--radius-control)] bg-coral px-3 py-1.5 text-[13.5px] font-semibold text-midnight hover:bg-coral-deep hover:text-cream"
+            href={previewHref}
+            target="_blank"
+            rel="noopener"
+          >
+            Open preview
+          </a>
+        </div>
+      </div>
+      <p className="mt-1 text-[12.5px] text-mute">Preview is private to your workspace; scripts and form submissions are blocked. Deployment waits for your approval.</p>
+      {open && (
+        <ul className="mt-3 divide-y divide-line">
+          {files.map((a) => (
+            <ArtifactRow key={a.id} artifact={a} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ArtifactRow({ artifact }: { artifact: Omit<Artifact, "contentText"> }) {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
@@ -402,9 +451,14 @@ function ArtifactRow({ artifact }: { artifact: Omit<Artifact, "contentText"> }) 
           </a>
         </div>
       </div>
-      {open && (
-        <div className="artifact-body mt-3 rounded-[12px] bg-cream-deep p-4 text-[14.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(content ?? "") }} />
-      )}
+      {open &&
+        (artifact.kind === "markdown" ? (
+          <div className="artifact-body mt-3 rounded-[12px] bg-cream-deep p-4 text-[14.5px]" dangerouslySetInnerHTML={{ __html: renderMarkdown(content ?? "") }} />
+        ) : (
+          <pre className="mt-3 max-h-[28rem] overflow-auto rounded-[12px] bg-midnight p-4 text-[12.5px] leading-relaxed text-cream">
+            <code>{content ?? ""}</code>
+          </pre>
+        ))}
     </li>
   );
 }

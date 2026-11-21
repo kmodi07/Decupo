@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { siteBuild } from "./site-build";
+import { siteCheck } from "./site-check";
 import type { Skill, SkillContext } from "./types";
 
 /** Shared helper: ask the LLM once per step and meter the usage. */
@@ -81,7 +83,7 @@ export const siteOutline: Skill = {
     id: "site-outline",
     version: "0.1.0",
     name: "Website outline",
-    description: "Sitemap and per-page content outline derived from the brand brief. Produces a plan, not code (website generator is Phase 2).",
+    description: "Sitemap and per-page content outline derived from the brand brief. The site-build step turns it into code.",
     agent: "Forge",
     actionClass: "generate",
     permissionScopes: ["llm:complete", "artifact:write", "artifact:read"],
@@ -105,7 +107,7 @@ export const siteOutline: Skill = {
     const a2 = await ctx.writeArtifact({ kind: "markdown", title: "Page outlines", content: `# Page outlines\n\n${res.text}` });
     return {
       status: "succeeded",
-      output: { sitemapArtifactId: a1.id, outlineArtifactId: a2.id, pageCount: pages.length, mock: res.mock },
+      output: { sitemap, sitemapArtifactId: a1.id, outlineArtifactId: a2.id, pageCount: pages.length, mock: res.mock },
       summary: `Sitemap with ${pages.length} pages and outlines produced.`,
     };
   },
@@ -191,10 +193,10 @@ export const deployPreview: Skill = {
     if (!(await ctx.hasConnection("hosting"))) {
       return { status: "blocked", reason: "No hosting connection is configured for this workspace. Connect a provider under Connected apps, then retry." };
     }
-    // Real deployment lands with the website generator (Phase 2). Until then a
+    // The hosting adapter lands with the connector framework (B-30). Until then a
     // connected provider still yields a blocked result rather than a fake success.
-    return { status: "blocked", reason: "Deployment is not implemented yet (backlog B-21)." };
+    return { status: "blocked", reason: "Deployment is not implemented yet: the hosting adapter ships with the connector framework (backlog B-30)." };
   },
 };
 
-export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, deckOutline, qaReview, deployPreview];
+export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview];

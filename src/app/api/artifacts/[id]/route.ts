@@ -5,7 +5,7 @@ import { getArtifact } from "@/server/missions/service";
 export const GET = withAuth<{ id: string }>(async (req, { db, ctx }, { id }) => {
   const artifact = await getArtifact(db, ctx, id);
   if (new URL(req.url).searchParams.get("download")) {
-    const ext = artifact.kind === "markdown" ? "md" : artifact.kind === "json" ? "json" : "html";
+    const ext = artifact.kind === "markdown" ? "md" : artifact.kind === "json" ? "json" : artifact.kind === "css" ? "css" : "html";
     const name = `${artifact.title.replace(/[^a-z0-9-]+/gi, "-").toLowerCase()}.${ext}`;
     return new Response(artifact.contentText ?? "", {
       headers: {

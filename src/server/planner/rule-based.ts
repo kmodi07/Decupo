@@ -17,23 +17,29 @@ const TEMPLATES: Template[] = [
   {
     id: "website",
     match: /\b(website|web site|landing page|homepage|site)\b/i,
-    summary: "Brand brief, sitemap and page outlines, an independent quality pass, then a deployment step that waits for your approval.",
+    summary:
+      "Brand brief, sitemap and page outlines, a generated multi-page static site you can preview, an independent offline quality check, then a deployment step that waits for your approval.",
     steps: [
       { key: "brand-brief", skillId: "brand-brief", title: "Draft the brand brief" },
       { key: "site-outline", skillId: "site-outline", title: "Outline the site", dependsOn: ["brand-brief"] },
-      { key: "qa-review", skillId: "qa-review", title: "Quality review", dependsOn: ["site-outline"] },
-      { key: "deploy-preview", skillId: "deploy-preview", title: "Deploy preview (needs approval)", dependsOn: ["qa-review"] },
+      { key: "site-build", skillId: "site-build", title: "Build the site", dependsOn: ["brand-brief", "site-outline"] },
+      { key: "site-check", skillId: "site-check", title: "Check the site", dependsOn: ["site-build"] },
+      { key: "deploy-preview", skillId: "deploy-preview", title: "Deploy preview (needs approval)", dependsOn: ["site-check"] },
     ],
     questions: [
+      { key: "brandName", prompt: "What is the business or project called?", required: false },
       { key: "audience", prompt: "Who is the site for?", required: false },
       { key: "tone", prompt: "Any words that describe the tone you want?", required: false },
     ],
     capabilities: [
       { label: "Brand and page planning", status: "supported" },
-      { label: "Generated site code with tests and preview", status: "not_available", note: "Website generator ships in Phase 2." },
+      { label: "Generated site code with tests and preview", status: "supported", note: "Template-based static site with offline link and accessibility checks." },
       { label: "Deployment to hosting", status: "needs_connection", note: "Requires a hosting connection and your approval." },
     ],
-    caveats: ["This mission produces a plan and outlines, not a live website yet."],
+    caveats: [
+      "The site is built from templates. Without a connected language model the copy is an offline draft and the quality review says so.",
+      "Sandboxed builds of custom code are not available yet; only template output is generated.",
+    ],
   },
   {
     id: "presentation",

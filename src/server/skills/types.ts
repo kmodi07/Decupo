@@ -46,6 +46,8 @@ export type SkillManifest = {
 
 export type SkillUsage = { provider: string; sku: string; unit: string; quantity: number };
 
+export type ArtifactKind = "markdown" | "json" | "html" | "css";
+
 export type SkillContext = {
   orgId: string;
   missionId: string;
@@ -58,7 +60,9 @@ export type SkillContext = {
   llm: LlmProvider;
   /** Run a side effect at most once per step, even across retries. */
   once<T>(key: string, tool: string, fn: () => Promise<T>): Promise<T>;
-  writeArtifact(a: { kind: "markdown" | "json" | "html"; title: string; content: string }): Promise<Artifact>;
+  writeArtifact(a: { kind: ArtifactKind; title: string; content: string; path?: string }): Promise<Artifact>;
+  /** Read an artifact of this mission. Requires the `artifact:read` scope; returns null when it does not exist. */
+  readArtifact(artifactId: string): Promise<Artifact | null>;
   recordUsage(u: SkillUsage): Promise<void>;
   log(message: string, payload?: Record<string, unknown>): Promise<void>;
   /** True when a hosting/publishing connection exists for the tenant (Phase 5). */

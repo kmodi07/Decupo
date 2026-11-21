@@ -8,7 +8,7 @@ import { getLlmProvider } from "../llm";
 import { appendEvent } from "../missions/events";
 import { evaluateMission, scheduleReadySteps } from "../missions/service";
 import { getSkill } from "../skills/registry";
-import type { SkillContext, SkillResult, SkillUsage } from "../skills/types";
+import type { SkillContext, SkillManifest, SkillResult, SkillUsage } from "../skills/types";
 
 export type WorkerOptions = {
   workerId?: string;
@@ -116,7 +116,7 @@ async function runStepJob(db: Db, job: Job, opts: WorkerOptions) {
 
   const skill = getSkill(step.skillId);
   const usage: SkillUsage[] = [];
-  const ctx = await buildContext(db, running, mission.goal, usage);
+  const ctx = await buildContext(db, running, mission.goal, usage, skill.manifest);
   const timeoutMs = opts.timeoutMs ?? skill.manifest.timeoutMs;
 
   let result: SkillResult;
@@ -207,7 +207,9 @@ async function finishStep(
   });
 }
 
-async function buildContext(db: Db, step: MissionStep, goal: string, usage: SkillUsage[]): Promise<SkillContext> {
+const ARTIFACT_MIME: Record<string, string> = { markdown: "text/markdown", json: "application/json", html: "text/html", css: "text/css" };
+
+async function buildContext(db: Db, step: MissionStep, goal: string, usage: SkillUsage[], manifest: SkillManifest): Promise<SkillContext> {
   const siblings = await db.select().from(missionSteps).where(eq(missionSteps.missionId, step.missionId));
   const upstream: Record<string, Record<string, unknown>> = {};
   for (const s of siblings) if (s.key !== step.key && s.status === "succeeded" && s.output) upstream[s.key] = s.output;
@@ -245,7 +247,7 @@ async function buildContext(db: Db, step: MissionStep, goal: string, usage: Skil
       }
     },
     async writeArtifact(a) {
-      const mime = a.kind === "markdown" ? "text/markdown" : a.kind === "json" ? "application/json" : "text/html";
+      const mime = ARTIFACT_MIME[a.kind] ?? "application/octet-stream";
       const [row] = await db
         .insert(artifacts)
         .values({
@@ -254,6 +256,7 @@ async function buildContext(db: Db, step: MissionStep, goal: string, usage: Skil
           stepId: step.id,
           kind: a.kind,
           title: a.title,
+          path: a.path ?? null,
           mimeType: mime,
           contentText: a.content,
           sizeBytes: Buffer.byteLength(a.content, "utf8"),
@@ -265,9 +268,21 @@ async function buildContext(db: Db, step: MissionStep, goal: string, usage: Skil
         missionId: step.missionId,
         type: "artifact.created",
         actor: `agent:${step.agent}`,
-        payload: { artifactId: row!.id, title: a.title, kind: a.kind, stepId: step.id },
+        payload: { artifactId: row!.id, title: a.title, kind: a.kind, path: a.path ?? null, stepId: step.id },
       });
       return row!;
+    },
+    async readArtifact(artifactId) {
+      if (!manifest.permissionScopes.includes("artifact:read")) {
+        throw new Error(`Skill ${manifest.id} does not have the artifact:read scope`);
+      }
+      // Scoped to the tenant and the mission: a skill never sees other missions' files.
+      const [row] = await db
+        .select()
+        .from(artifacts)
+        .where(and(eq(artifacts.id, artifactId), eq(artifacts.orgId, step.orgId), eq(artifacts.missionId, step.missionId)))
+        .limit(1);
+      return row ?? null;
     },
     async recordUsage(u) {
       usage.push(u);

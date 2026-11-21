@@ -251,8 +251,10 @@ export const artifacts = pgTable(
       .notNull()
       .references(() => missions.id, { onDelete: "cascade" }),
     stepId: uuid("step_id").references(() => missionSteps.id, { onDelete: "set null" }),
-    kind: text("kind").notNull(), // markdown | json | html | file
+    kind: text("kind").notNull(), // markdown | json | html | css | file
     title: text("title").notNull(),
+    /** Relative file path for artifacts that form a file tree (generated sites). */
+    path: text("path"),
     mimeType: text("mime_type").notNull(),
     /** Small text artifacts are stored inline; large blobs go to storage. */
     contentText: text("content_text"),

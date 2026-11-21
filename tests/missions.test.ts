@@ -98,7 +98,7 @@ describe("mission lifecycle", () => {
     await drain(h.db);
     m = await getMission(h.db, t.ctx, mission.id);
     expect(m.status).toBe("partially_completed");
-    expect(m.summary).toBe("3/4 steps done, 1 blocked");
+    expect(m.summary).toBe("4/5 steps done, 1 blocked");
     const after = (await listSteps(h.db, t.ctx, mission.id)).find((s) => s.key === "deploy-preview")!;
     expect(after.status).toBe("blocked");
     expect(after.error).toMatch(/No hosting connection/);
@@ -114,7 +114,7 @@ describe("mission lifecycle", () => {
     await decideApproval(h.db, t.ctx, appr!.id, { decision: "rejected", note: "Not yet" });
     const m = await getMission(h.db, t.ctx, mission.id);
     expect(m.status).toBe("partially_completed");
-    expect(m.summary).toBe("3/4 steps done, 1 skipped");
+    expect(m.summary).toBe("4/5 steps done, 1 skipped");
   });
 
   it("pause stops new steps, resume continues, cancel releases the reservation", async () => {

@@ -15,6 +15,13 @@
       "when": 1795276523470,
       "tag": "0001_rls_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795281335971,
+      "tag": "0002_artifact_path",
+      "breakpoints": true
     }
   ]
 }

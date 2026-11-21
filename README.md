@@ -5,11 +5,14 @@ Cupi plans it, estimates credits, waits for your go-ahead, then specialist
 agents run bounded steps with live updates, approvals for anything
 consequential, and a ledger that reserves, settles and releases credits.
 
-> Status: **Phase 1 foundation.** Auth, tenancy, mission engine, durable
-> worker, credit ledger, approvals, event stream and Mission Control UI are
-> implemented and tested. Real website/deck generation, OAuth connectors,
-> publishing and billing are not built yet; the planner shows those as
-> *not available* or *needs connection* instead of pretending.
+> Status: **Phase 1 foundation + first Phase 2 outcome.** Auth, tenancy,
+> mission engine, durable worker, credit ledger, approvals, event stream and
+> Mission Control UI are implemented and tested. Website missions now generate
+> a real multi-page static site (template-based, no code execution) with an
+> offline quality check and a private, script-blocked preview. Deck generation,
+> OAuth connectors, publishing and billing are not built yet; the planner shows
+> those as *not available* or *needs connection* instead of pretending. Without
+> an LLM key the site copy is an offline draft and the quality review says so.
 > "Decupo" is a working name and has not been cleared for trademark or domain use.
 
 ## Run it locally (no Docker or Postgres needed)
@@ -39,7 +42,7 @@ worker runs inside the web process. Without an LLM key every agent uses an
 | Command | What it does |
 |---|---|
 | `npm run dev` | Next.js dev server with inline worker (PGlite) |
-| `npm test` | Vitest suite against in-memory PGlite (28 tests) |
+| `npm test` | Vitest suite against in-memory PGlite (39 tests) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run db:generate` | Generate SQL migrations from `src/server/db/schema.ts` |
@@ -54,6 +57,9 @@ worker runs inside the web process. Without an LLM key every agent uses an
 - Mission lifecycle: plan, authorise, run, approvals (approve and reject), pause, resume, cancel.
 - Durable execution: retry with backoff, side-effect replay through `once()`, lease expiry recovery, budget ceiling blocking.
 - HTTP API: cookies, CSRF origin check, SSE event stream, artifact download.
+- Website generator: the generated site passes `site-check` (internal links, image alt text, one h1 per page, lang, title, viewport); a deliberately broken page fails it with every finding listed; the contact form is marked as not connected and no prices are invented.
+- Preview route: serves generated files only to the owning tenant with a script-blocking Content-Security-Policy, 404 for other tenants and unknown paths, 401 when signed out.
+- Full website mission: brand brief, outline, build, check, then `awaiting_review` at the approval-gated deploy step with the site files and quality review present; after approval the deploy step reports `blocked` (no hosting connection), never a fake success.
 
 ## Layout
 
@@ -67,7 +73,7 @@ src/server/ledger  Credit ledger
 src/server/missions State machine, events, mission service
 src/server/jobs    Durable queue
 src/server/worker  Step runner
-src/server/skills  Manifests and built-in skills
+src/server/skills  Manifests and built-in skills (site/ holds the pure site generator and checker)
 src/server/planner Cupi's rule-based planner
 src/server/policy  Action classes and tiers
 src/server/llm     Provider interface + offline mock

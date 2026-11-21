@@ -31,11 +31,11 @@ date of the last update.
 | ID | Item | Status |
 |---|---|---|
 | B-20 | Anthropic provider wired to planner/skills with token metering into `provider_costs` | blocked (`ANTHROPIC_API_KEY` not set; adapter stubbed) |
-| B-21 | Website generator: template engine -> static site files, accessibility + link checks, local preview, deploy approval gate | not started |
-| B-22 | Sandboxed build step (container with no egress) for generated sites | not started |
+| B-21 | Website generator: template engine -> static site files, accessibility + link checks, local preview, deploy approval gate | done (`site-build` + `site-check` skills, tenant-scoped preview route with script-blocking CSP; copy is an offline draft until B-20 lands) |
+| B-22 | Sandboxed build step (container with no egress) for generated sites | not started (still pending: generation is template-based and executes no user code, so no sandbox is needed yet; required before custom code or framework builds are accepted) |
 | B-23 | Presentation generator: research with citations -> editable deck (pptx export), QA check for uncited claims | not started |
 | B-24 | Artifact versioning + download UI | not started |
-| B-25 | Vale validator skill (independent QA pass) | not started |
+| B-25 | Vale validator skill (independent QA pass) | in progress (`qa-review` for documents, `site-check` for generated sites; LLM-assisted review pending B-20) |
 
 ## M3 - Connected automations (Phase 3)
 | ID | Item | Status |
@@ -66,4 +66,4 @@ date of the last update.
 | B-57 | Load test of worker throughput | not started |
 | B-58 | Security review / dependency audit in CI | not started |
 
-Last updated: 2026-11-21 (end of Phase 1 build iteration 1: 28 tests passing, production build green).
+Last updated: 2026-11-21 (Phase 2 iteration 1: website generator B-21 done, 39 tests passing, production build green).
