@@ -1,0 +1,69 @@
+# Milestone plan and implementation backlog
+
+Status key: done / in progress / not started / blocked (reason). Statuses are
+updated at the end of each build iteration; see the bottom of this file for the
+date of the last update.
+
+## M1 - Foundation (Phase 1)
+| ID | Item | Status |
+|---|---|---|
+| B-01 | Repo audit, architecture, risk register, backlog | done |
+| B-02 | Next.js 16 + TypeScript + Tailwind scaffold, lint, vitest | done |
+| B-03 | Drizzle schema: orgs, users, memberships, workspaces, sessions, missions, steps, events, approvals, artifacts, ledger, jobs, tool_invocations, provider_costs, notifications | done |
+| B-04 | PGlite/pg driver switch + SQL migrations + RLS policies | done |
+| B-05 | Auth: signup, login, logout, sessions, origin check | done |
+| B-06 | Tenancy: TenantContext, RBAC permissions, membership roles | done |
+| B-07 | Credit ledger: grant / reserve / settle / release, no-negative invariant | done |
+| B-08 | Mission state machine + step DAG + events + approvals | done |
+| B-09 | Durable job queue with leases, retries, backoff, reaper | done |
+| B-10 | Worker step runner with reserve/settle and `once()` idempotency | done |
+| B-11 | Rule-based Cupi planner with estimates and "needs connection" flags | done |
+| B-12 | Skills: brand-brief, research-memo, site-outline, deck-outline (mock LLM); manifests + tests | done |
+| B-13 | API: missions, estimate, authorize, pause, resume, cancel, events (SSE), artifacts, approvals, ledger | done |
+| B-14 | Mission Control UI: landing, auth, mission list, mission detail with live timeline, approvals, credits | done |
+| B-15 | Design system components from brand palette + mascot | done |
+| B-16 | Secrets envelope encryption helper | done |
+| B-17 | README with run/test instructions and honest status | done |
+| B-18 | CI workflow running vitest against PGlite and a Postgres service (RLS enforcement test) | in progress (PGlite CI added; Postgres service job pending) |
+| B-19 | Email verification + password reset | blocked (no mail provider) |
+
+## M2 - First real outcomes (Phase 2)
+| ID | Item | Status |
+|---|---|---|
+| B-20 | Anthropic provider wired to planner/skills with token metering into `provider_costs` | blocked (`ANTHROPIC_API_KEY` not set; adapter stubbed) |
+| B-21 | Website generator: template engine -> static site files, accessibility + link checks, local preview, deploy approval gate | not started |
+| B-22 | Sandboxed build step (container with no egress) for generated sites | not started |
+| B-23 | Presentation generator: research with citations -> editable deck (pptx export), QA check for uncited claims | not started |
+| B-24 | Artifact versioning + download UI | not started |
+| B-25 | Vale validator skill (independent QA pass) | not started |
+
+## M3 - Connected automations (Phase 3)
+| ID | Item | Status |
+|---|---|---|
+| B-30 | OAuth connector framework (encrypted tokens, scope preview, revoke, access log) | not started |
+| B-31 | Google OAuth + YouTube publisher behind verification, quota meter, content-policy check | blocked (needs Google Cloud project + verification) |
+| B-32 | Pre-authorisation policies (Tier 2) with limits | not started |
+| B-33 | Notifications: in-app + email opt-in | not started |
+
+## M4 - Monetisation and operations (Phase 4)
+| ID | Item | Status |
+|---|---|---|
+| B-40 | Stripe subscriptions + credit packs, webhook-driven grants | blocked (needs Stripe account) |
+| B-41 | Cost reconciliation report, budget alerts, low-balance alerts | not started |
+| B-42 | Admin console: missions, failures, costs, abuse signals | not started |
+| B-43 | Observability: structured logs, traces per mission, error tracking | not started |
+
+## M5 - Test and hardening gates (continuous)
+| ID | Item | Status |
+|---|---|---|
+| B-50 | Tenant isolation tests | done (service + HTTP + RLS under app role) |
+| B-51 | Permission boundary tests | done |
+| B-52 | Job-resume after worker crash test | done |
+| B-53 | Credit accounting invariants test | done |
+| B-54 | Cancellation releases reservations test | done |
+| B-55 | No unapproved Tier 3 action test | done |
+| B-56 | E2E browser tests (Playwright) | not started |
+| B-57 | Load test of worker throughput | not started |
+| B-58 | Security review / dependency audit in CI | not started |
+
+Last updated: 2026-11-21 (end of Phase 1 build iteration 1: 28 tests passing, production build green).

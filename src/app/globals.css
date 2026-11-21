@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-jakarta), "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+@theme {
+  --color-midnight: #141329;
+  --color-ink: #2a2745;
+  --color-mute: #6d6a86;
+  --color-line: #e4ddf3;
+  --color-coral: #fc805d;
+  --color-coral-deep: #d9603d;
+  --color-coral-soft: #ffe6dc;
+  --color-lavender: #8065ed;
+  --color-lavender-deep: #5a44c4;
+  --color-lavender-soft: #ece8fc;
+  --color-cream: #fffaf4;
+  --color-cream-deep: #f5ede1;
+  --color-mint: #bde9d8;
+  --color-mint-deep: #1f7a5a;
+  --color-amber-soft: #fff1d6;
+  --color-amber-deep: #8a5200;
+  --color-rose-soft: #fde2e1;
+  --color-rose-deep: #a13a32;
+  --color-slate-soft: #eeebf3;
+
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-control: 10px;
+
+  --shadow-float: 0 24px 60px -30px rgba(20, 19, 41, 0.35);
+  --shadow-lift: 0 10px 30px -18px rgba(128, 101, 237, 0.45);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background: var(--color-cream);
+  color: var(--color-midnight);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--color-lavender-soft);
+  color: var(--color-midnight);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-lavender);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Cupi's single orchestrated motion: a slow float in the hero. */
+@keyframes cupi-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(1deg);
+  }
+}
+.cupi-float {
+  animation: cupi-float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes glow-in {
+  from {
+    background-color: var(--color-lavender-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.glow-in {
+  animation: glow-in 1.6s ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cupi-float,
+  .pulse-dot,
+  .glow-in {
+    animation: none;
+  }
+}
+
+/* Markdown-ish rendering for artifacts (plain, readable, no prose plugin). */
+.artifact-body h1,
+.artifact-body h2,
+.artifact-body h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 1.2em 0 0.4em;
+}
+.artifact-body h1 {
+  font-size: 1.35rem;
+}
+.artifact-body h2 {
+  font-size: 1.1rem;
+}
+.artifact-body p,
+.artifact-body li {
+  line-height: 1.6;
+}
+.artifact-body ul {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.artifact-body blockquote {
+  border-left: 3px solid var(--color-coral);
+  background: var(--color-coral-soft);
+  padding: 0.6em 0.9em;
+  border-radius: 0 10px 10px 0;
+  margin: 0.8em 0;
+}
+.artifact-body pre {
+  background: var(--color-midnight);
+  color: var(--color-cream);
+  padding: 0.9em 1em;
+  border-radius: 12px;
+  overflow: auto;
+  font-size: 0.85rem;
+}
