@@ -15,6 +15,12 @@ consequential, and a ledger that reserves, settles and releases credits.
 > an LLM key the site copy is an offline draft and the quality review says so.
 > "Decupo" is a working name and has not been cleared for trademark or domain use.
 
+## Deployment policy
+
+Never modify www.decupo.com, its DNS, customer data, billing or the existing
+services behind it without an approved migration and backup plan. See
+`docs/RUNBOOK_DECUPO_COM_CUTOVER.md`.
+
 ## Run it locally (no Docker or Postgres needed)
 
 ```powershell
