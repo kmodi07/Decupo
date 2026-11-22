@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { composeBrandBrief, composeDeckOutline, composePageOutlines, composeResearchMemo } from "./compose";
+import { GENERAL_SKILLS } from "./general";
 import { GROWTH_SKILLS } from "./growth";
 import { SALES_SKILLS } from "./sales";
 import { SOCIAL_SKILLS } from "./social";
@@ -128,7 +129,7 @@ export const qaReview: Skill = {
     id: "qa-review",
     version: "0.2.0",
     name: "Quality review",
-    description: "Independent checklist over upstream outputs: unsourced claims, missing facts, nothing to send to. Flags, never silently fixes.",
+    description: "Independent checklist over upstream outputs: unsourced claims, missing facts, model-written text, nothing to send to. Flags, never silently fixes.",
     agent: "Vale",
     actionClass: "read",
     permissionScopes: ["artifact:read", "artifact:write"],
@@ -149,6 +150,16 @@ export const qaReview: Skill = {
     // Connector test mode: data from a mock adapter is never real buyers or real sends.
     const testData = upstreamKeys.filter((k) => ctx.upstream[k]?.mock === true);
     if (testData.length) findings.push(`Test data from the mock adapter in: ${testData.join(", ")}. These are not real contacts or sends; nothing should go out to them outside a test.`);
+    // Model-written drafts: a language model wrote them from the inputs; nothing in them is verified.
+    for (const k of upstreamKeys) {
+      const out = ctx.upstream[k]!;
+      if (out.modelWritten !== true) continue;
+      const by = typeof out.provider === "string" && typeof out.model === "string" ? ` by ${out.provider} (${out.model})` : "";
+      findings.push(`${k} was written by a language model${by} and has not been verified: check every fact, number and name before relying on it; it cites no sources because none were retrieved.`);
+      if (out.stopReason === "max_tokens") findings.push(`${k} was cut off at the model's length limit; the draft ends early.`);
+      if (out.stopReason === "refusal") findings.push(`${k}: the model declined part of the request; the draft may be incomplete.`);
+      if (out.usageEstimated === true) findings.push(`${k}: the provider did not report token usage, so the charge for this step is an estimate.`);
+    }
     if (upstreamKeys.includes("deck-outline")) {
       findings.push("Deck outline marks claims with [citation needed]; each needs a source before the deck is shown.");
     }
@@ -197,4 +208,4 @@ export const deployPreview: Skill = {
   },
 };
 
-export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview, ...SALES_SKILLS, ...SOCIAL_SKILLS, ...GROWTH_SKILLS];
+export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview, ...SALES_SKILLS, ...SOCIAL_SKILLS, ...GROWTH_SKILLS, ...GENERAL_SKILLS];

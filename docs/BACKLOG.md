@@ -30,7 +30,7 @@ date of the last update.
 ## M2 - First real outcomes (Phase 2)
 | ID | Item | Status |
 |---|---|---|
-| B-20 | Anthropic provider wired to planner/skills with token metering into `provider_costs` | blocked (`ANTHROPIC_API_KEY` not set; adapter stubbed) |
+| B-20 | Anthropic provider wired to planner/skills with token metering into `provider_costs` | done in code (`src/server/llm`: Anthropic, OpenAI and xAI providers plus a `router` with failover; `general-task` skill planned only when a provider is configured; token usage into `provider_costs`); blocked in production (no keys set, `LLM_PROVIDER=mock`; see `docs/LLM_PROVIDERS.md`) |
 | B-21 | Website generator: template engine -> static site files, accessibility + link checks, local preview, deploy approval gate | done (`site-build` + `site-check` skills, tenant-scoped preview route with script-blocking CSP; copy is an offline draft until B-20 lands) |
 | B-22 | Sandboxed build step (container with no egress) for generated sites | not started (still pending: generation is template-based and executes no user code, so no sandbox is needed yet; required before custom code or framework builds are accepted) |
 | B-23 | Presentation generator: research with citations -> editable deck (pptx export), QA check for uncited claims | not started |
