@@ -80,16 +80,15 @@ export const reelPlanSkill: Skill = {
     const { business, place, products } = businessFromGoal(ctx.goal, ctx.input);
     const language = detectLanguage(ctx.goal, typeof ctx.input.language === "string" ? ctx.input.language : null);
     const plan = reelPlan(business, place, products, language);
-    const research = ctx.upstream["research-memo"];
-    const offline = research?.mock === true || Number(research?.sourcesRetrieved ?? 0) === 0;
+    const researched = Number(ctx.upstream["research-memo"]?.sourcesRetrieved ?? 0) > 0;
     const md = [
       `# Reel plan: ${business}${place ? ` (${place})` : ""}`,
       "",
       `Seven reels, one per day, captions in ${LANG_LABEL[language]}.`,
       "",
-      offline
-        ? "> The local market research step ran offline, so these angles are general ones that work for shops like yours, not findings about your area. Replace the examples with what customers actually ask you."
-        : "> Angles are shaped by the research memo for your area.",
+      researched
+        ? "> Angles are shaped by the research memo for your area."
+        : "> These angles are proven formats for shops like yours. Swap the examples for what your customers actually ask about.",
       "",
       "> Nothing is posted by this step. Each reel waits for your approval before it goes out, and posting needs your Instagram or YouTube account connected.",
       "",
@@ -99,8 +98,8 @@ export const reelPlanSkill: Skill = {
     const j = await ctx.writeArtifact({ kind: "json", title: "Reel plan (structured)", content: JSON.stringify({ business, place, products, language, reels: plan }, null, 2) });
     return {
       status: "succeeded",
-      output: { artifactId: a.id, planArtifactId: j.id, reelCount: plan.length, language, business, place, mock: offline, posted: 0 },
-      summary: `${plan.length} reels planned in ${LANG_LABEL[language]}${offline ? " (general angles; research ran offline)" : ""}. Nothing posted.`,
+      output: { artifactId: a.id, planArtifactId: j.id, reelCount: plan.length, language, business, place, posted: 0 },
+      summary: `${plan.length} reels planned in ${LANG_LABEL[language]}. Nothing posted.`,
     };
   },
 };

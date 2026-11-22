@@ -3,7 +3,7 @@ import { AgentBadge, Pill } from "../ui";
 /**
  * What a finished mission leaves behind, drawn from Decupo's real artifact
  * types: a brand brief, a generated multi-page site, Vale's quality review,
- * an approval request and the credit settlement. Static mocks, labelled as
+ * an approval request and the credit settlement. Static examples, labelled as
  * examples so nobody mistakes them for a live account.
  */
 export function Deliverables() {
@@ -51,7 +51,7 @@ export function Deliverables() {
       </article>
 
       <article className="deliverable md:col-span-2">
-        <Caption agent="Vale" title="Site quality review" meta="Offline checks, never hidden" />
+        <Caption agent="Vale" title="Site quality review" meta="Automatic checks, never hidden" />
         <ul className="mt-3 space-y-1.5 text-[13.5px]">
           {["Internal links resolve", "Every image has alt text", "One h1 per page", "lang and title present"].map((c) => (
             <li key={c} className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export function Deliverables() {
           ))}
         </ul>
         <p className="mt-3 flex items-center gap-2 text-[13px] text-mute">
-          Verdict <Pill tone="done">pass</Pill> with one note: copy drafted offline.
+          Verdict <Pill tone="done">pass</Pill>: 5 pages, 32 links, no failures.
         </p>
       </article>
 
@@ -76,7 +76,7 @@ export function Deliverables() {
       </article>
 
       <article className="deliverable md:col-span-3">
-        <Caption agent="Nova" title="Brand brief" meta="Markdown, labelled when drafted offline" />
+        <Caption agent="Nova" title="Brand brief" meta="Markdown, built from your answers" />
         <div className="mt-3 space-y-1.5 text-[13.5px] leading-relaxed">
           <p className="font-semibold">Positioning</p>
           <p className="text-ink">Small-batch pottery for people who like their mugs to have a story.</p>

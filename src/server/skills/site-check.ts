@@ -14,7 +14,7 @@ export const siteCheck: Skill = {
     version: "0.1.0",
     name: "Check the website",
     description:
-      "Offline quality checks over the generated site: internal links resolve, every image has alt text, exactly one h1 per page, lang attribute, non-empty title, viewport meta. Failures are reported, never hidden.",
+      "Quality checks over the generated site, run without a network: internal links resolve, every image has alt text, exactly one h1 per page, lang attribute, non-empty title, viewport meta. Failures are reported, never hidden.",
     agent: "Vale",
     actionClass: "read",
     permissionScopes: ["artifact:read", "artifact:write"],
@@ -41,7 +41,7 @@ export const siteCheck: Skill = {
       return { status: "blocked", reason: `Only ${files.length} of ${ids.data.length} generated files could be read.` };
     }
 
-    const report = checkSite(files, { offlineCopy: build?.mock === true });
+    const report = checkSite(files);
     const artifact = await ctx.writeArtifact({ kind: "markdown", title: "Site quality review", content: renderReport(report) });
     const errors = report.findings.filter((f) => f.severity === "error");
     const warnings = report.findings.filter((f) => f.severity === "warning");

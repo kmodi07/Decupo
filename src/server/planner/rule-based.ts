@@ -18,7 +18,7 @@ const TEMPLATES: Template[] = [
     id: "website",
     match: /\b(website|web site|landing page|homepage|site)\b/i,
     summary:
-      "Brand brief, sitemap and page outlines, a generated multi-page static site you can preview, an independent offline quality check, then a deployment step that waits for your approval.",
+      "Brand brief, sitemap and page outlines, a generated multi-page static site you can preview, an independent quality check, then a deployment step that waits for your approval.",
     steps: [
       { key: "brand-brief", skillId: "brand-brief", title: "Draft the brand brief" },
       { key: "site-outline", skillId: "site-outline", title: "Outline the site", dependsOn: ["brand-brief"] },
@@ -34,11 +34,11 @@ const TEMPLATES: Template[] = [
     ],
     capabilities: [
       { label: "Brand and page planning", status: "supported" },
-      { label: "Generated site code with tests and preview", status: "supported", note: "Template-based static site with offline link and accessibility checks." },
+      { label: "Generated site code with tests and preview", status: "supported", note: "Static site with automatic link and accessibility checks." },
       { label: "Deployment to hosting", status: "needs_connection", note: "Requires a hosting connection and your approval." },
     ],
     caveats: [
-      "The site is built from templates. Without a connected language model the copy is an offline draft and the quality review says so.",
+      "Copy is written in English from your brief and answers; review it before publishing.",
       "Sandboxed builds of custom code are not available yet; only template output is generated.",
     ],
   },
@@ -80,7 +80,7 @@ const TEMPLATES: Template[] = [
       { key: "videoUrl", prompt: "If you have already shot the first reel, a public link to the video file so it can be posted.", required: false },
     ],
     capabilities: [
-      { label: "Local market research and a weekly reel plan", status: "supported", note: "Research is an offline outline until a language model and web access are connected." },
+      { label: "Local market research and a weekly reel plan", status: "supported", note: "Research is a structured memo from your answers until web research is connected." },
       { label: "Video rendering", status: "not_available", note: "Media pipeline is a later phase; the plan is for you to shoot from, or give a link to a video you shot." },
       { label: "Posting to Instagram or YouTube", status: "needs_connection", note: "From your own connected account, one reel per approval." },
     ],

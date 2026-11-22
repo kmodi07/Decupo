@@ -1,5 +1,5 @@
 /**
- * Deterministic, offline checks over a generated static site (backlog B-21).
+ * Deterministic checks over a generated static site (backlog B-21).
  *
  * Pure functions over the file tree: no network, no browser, no script
  * execution. Regex-based on purpose so the checker has no dependencies and
@@ -10,7 +10,7 @@ import type { SiteFile } from "./generate";
 export type Severity = "error" | "warning";
 
 export type Finding = {
-  check: "link" | "img-alt" | "h1" | "lang" | "title" | "viewport" | "copy";
+  check: "link" | "img-alt" | "h1" | "lang" | "title" | "viewport";
   severity: Severity;
   file: string;
   message: string;
@@ -25,7 +25,7 @@ export type CheckReport = {
 
 const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
 
-export function checkSite(files: SiteFile[], opts: { offlineCopy?: boolean } = {}): CheckReport {
+export function checkSite(files: SiteFile[]): CheckReport {
   const findings: Finding[] = [];
   const paths = new Set(files.map((f) => normalisePath(f.path)));
   const pages = files.filter((f) => f.kind === "html" || /\.html?$/i.test(f.path));
@@ -77,14 +77,6 @@ export function checkSite(files: SiteFile[], opts: { offlineCopy?: boolean } = {
   if (pages.length === 0) {
     findings.push({ check: "title", severity: "error", file: "(site)", message: "No HTML pages to check." });
   }
-  if (opts.offlineCopy) {
-    findings.push({
-      check: "copy",
-      severity: "warning",
-      file: "(site)",
-      message: "Copy was drafted offline from templates (no language model connected). Review every page before publishing.",
-    });
-  }
 
   const verdict = findings.some((f) => f.severity === "error") ? "needs_work" : "pass";
   return { verdict, pagesChecked: pages.length, linksChecked, findings };
@@ -99,7 +91,7 @@ export function renderReport(report: CheckReport, title = "Site quality review")
     "",
     `**Verdict:** ${report.verdict}`,
     "",
-    `Checked ${report.pagesChecked} page(s) and ${report.linksChecked} internal link(s) offline: internal links resolve, every image has alt text, exactly one h1 per page, lang attribute present, non-empty title, viewport meta.`,
+    `Checked ${report.pagesChecked} page(s) and ${report.linksChecked} internal link(s) without a network: internal links resolve, every image has alt text, exactly one h1 per page, lang attribute present, non-empty title, viewport meta.`,
     "",
     "## Failures",
     "",

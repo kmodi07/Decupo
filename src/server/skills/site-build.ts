@@ -44,18 +44,16 @@ export const siteBuild: Skill = {
 
     const briefOut = ctx.upstream["brand-brief"];
     let brief: BriefSections = {};
-    let offline = false;
     if (typeof briefOut?.artifactId === "string") {
       const art = await ctx.readArtifact(briefOut.artifactId);
       brief = parseBrief(art?.contentText ?? "");
     }
-    if (briefOut?.mock === true || outline?.mock === true) offline = true;
 
     const brandName = typeof ctx.input.brandName === "string" && ctx.input.brandName.trim() ? ctx.input.brandName.trim() : brandNameFromGoal(ctx.goal);
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
     // The look is derived deterministically from what the user and the brief said; the source is reported, never guessed silently.
     const theme = deriveTheme({ look: str(ctx.input.look), visual: brief.visual, tone: str(ctx.input.tone), goal: ctx.goal });
-    const files = generateSite({ brandName, goal: ctx.goal, pages, brief, offline, tagline: str(ctx.input.tagline), theme });
+    const files = generateSite({ brandName, goal: ctx.goal, pages, brief, tagline: str(ctx.input.tagline), theme });
 
     const artifactIds: string[] = [];
     const written: Array<{ path: string; artifactId: string; bytes: number }> = [];
@@ -84,9 +82,8 @@ export const siteBuild: Skill = {
         brandName,
         generator: "template",
         theme: { palette: theme.palette, type: theme.type, shape: theme.shape, source: theme.source, description: theme.description },
-        mock: offline,
       },
-      summary: offline ? `${base} Copy is an offline draft from templates. ${theme.description}` : `${base} ${theme.description}`,
+      summary: `${base} ${theme.description}`,
     };
   },
 };

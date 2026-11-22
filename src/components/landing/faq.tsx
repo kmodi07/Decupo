@@ -13,11 +13,11 @@ const QA: Array<[string, string]> = [
   ],
   [
     "What can it actually do today?",
-    "Plan missions with honest estimates, write brand briefs, research memos and outlines, generate a multi-page website with a private preview and an offline quality check, and prepare a sale: an offer sheet from your stock and price, a map of who buys it in your market, and outreach drafts for each. Deployment, decks, finding contacts and sending messages need connections that are not built yet, and the planner says so.",
+    "Plan missions with honest estimates, write brand briefs, research memos and outlines, generate a multi-page website with a private preview and an automatic quality check, and prepare a sale: an offer sheet from your stock and price, a map of who buys it in your market, and outreach drafts for each. Deployment, decks, finding contacts and sending messages need connections that are not built yet, and the planner says so.",
   ],
   [
     "Is the content real?",
-    "Without a connected language model the agents produce clearly labelled offline drafts. They never invent sources, prices or statistics, and Vale flags placeholder content in the quality review.",
+    "Yes. Briefs, memos, outlines, sites and outreach drafts are written in English from your goal and your answers, so every figure and name in them came from you. Nothing invents sources, prices or statistics, and Vale's review lists what still needs a source or a decision from you.",
   ],
   [
     "Can it sell my stock for me?",

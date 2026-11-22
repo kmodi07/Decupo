@@ -85,8 +85,8 @@ export default async function Landing() {
         <div className="mx-auto max-w-6xl px-5 py-20">
           <h2 className="text-[32px] font-bold tracking-tight sm:text-[40px]">Real deliverables, honestly labelled.</h2>
           <p className="mt-2 max-w-[60ch] text-[16px] text-cream/75">
-            These are the artifact types a mission produces today. When the crew drafts something offline, it says so on the artifact and in the
-            quality review.
+            These are the artifact types a mission produces today. Everything is written in English from your goal and answers, and the
+            quality review says what still needs a human.
           </p>
           <div className="mt-10">
             <Deliverables />

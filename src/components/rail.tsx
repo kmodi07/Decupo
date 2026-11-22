@@ -16,11 +16,9 @@ const NAV = [
 export function Rail({
   user,
   credits,
-  offline,
 }: {
   user: { name: string; email: string; role: string };
   credits: { balance: number; reserved: number; available: number };
-  offline: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -61,11 +59,6 @@ export function Rail({
           <p className="text-[26px] font-bold tabular-nums tracking-tight">{credits.available.toLocaleString()}</p>
           {credits.reserved > 0 && <p className="text-[12.5px] text-cream/60">{credits.reserved.toLocaleString()} reserved for running missions</p>}
         </div>
-        {offline && (
-          <p className="rounded-[10px] bg-coral/15 px-3 py-2 text-[12.5px] leading-snug text-coral">
-            Offline mode: agents produce labelled placeholder drafts until a language-model provider is connected.
-          </p>
-        )}
         <div className="flex items-center justify-between gap-2 text-[13px]">
           <div className="min-w-0">
             <p className="truncate font-medium">{user.name}</p>

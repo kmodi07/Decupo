@@ -74,7 +74,7 @@ describe("social mission", () => {
     const reel = arts.find((a) => a.title === "Reel plan")!.contentText!;
     expect(reel).toContain("Sri Ganesh Agency");
     expect(reel).toContain("Bharuch");
-    expect(reel).toContain("research step ran offline");
+    expect(reel).toContain("proven formats for shops like yours");
     expect(reel).toMatch(/[઀-૿]/);
     expect(reel).toContain("Nothing is posted by this step");
     const review = arts.find((a) => a.title === "Quality review")!.contentText!;

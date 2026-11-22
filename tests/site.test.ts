@@ -23,7 +23,7 @@ const PAGES = [
 ];
 
 describe("site generator (pure)", () => {
-  const files = generateSite({ brandName: "Bright Tutors", goal: "Build a website for my tutoring company", pages: PAGES, offline: true });
+  const files = generateSite({ brandName: "Bright Tutors", goal: "Build a website for my tutoring company", pages: PAGES });
 
   it("emits index.html, one page per sitemap entry and a shared stylesheet", () => {
     expect(files.map((f) => f.path)).toEqual(["index.html", "about.html", "services.html", "pricing.html", "contact.html", "styles.css"]);
@@ -60,13 +60,12 @@ describe("site generator (pure)", () => {
     expect(pricing).not.toMatch(/[$£€]\s?\d/);
   });
 
-  it("labels offline copy and escapes user text", () => {
-    expect(files.find((f) => f.path === "about.html")!.content).toContain("Draft copy");
+  it("escapes user text and carries brief copy into the pages", () => {
+    expect(files.find((f) => f.path === "about.html")!.content).not.toContain("Draft copy");
     const live = generateSite({
       brandName: "<Evil> & Co",
       goal: "x",
       pages: PAGES.slice(0, 2),
-      offline: false,
       brief: { positioning: "We help families learn together." },
     });
     const home = live.find((f) => f.path === "index.html")!.content;
@@ -87,18 +86,17 @@ describe("site generator (pure)", () => {
 });
 
 describe("site checker (pure)", () => {
-  const files = generateSite({ brandName: "Bright Tutors", goal: "Build a website for my tutoring company", pages: PAGES, offline: true });
+  const files = generateSite({ brandName: "Bright Tutors", goal: "Build a website for my tutoring company", pages: PAGES });
 
-  it("passes the generated site and reports offline copy as a note, not a failure", () => {
-    const report = checkSite(files, { offlineCopy: true });
+  it("passes the generated site", () => {
+    const report = checkSite(files);
     expect(report.verdict).toBe("pass");
     expect(report.pagesChecked).toBe(5);
     expect(report.linksChecked).toBeGreaterThan(20);
     expect(report.findings.filter((f) => f.severity === "error")).toEqual([]);
-    expect(report.findings.map((f) => f.check)).toContain("copy");
+    expect(report.findings.filter((f) => f.severity === "warning")).toEqual([]);
     const md = renderReport(report);
     expect(md).toContain("**Verdict:** pass");
-    expect(md).toContain("drafted offline");
   });
 
   it("fails a deliberately broken page and lists every failure", () => {
@@ -193,7 +191,7 @@ describe("site theme (pure)", () => {
   });
 
   it("writes the theme into the generated stylesheet and markup, and the checks still pass", () => {
-    const base = { brandName: "Clay & Kiln", goal: "Build a website for my pottery studio", pages: PAGES, offline: true };
+    const base = { brandName: "Clay & Kiln", goal: "Build a website for my pottery studio", pages: PAGES };
     const earth = generateSite({ ...base, look: "warm terracotta, rounded" });
     const navy = generateSite({ ...base, look: "#2f5bea, clean and modern, sharp" });
     const cssEarth = earth.find((f) => f.path === "styles.css")!.content;
@@ -209,8 +207,8 @@ describe("site theme (pure)", () => {
     const home = earth.find((f) => f.path === "index.html")!.content;
     expect(home).toContain('<meta name="theme-color" content="#3a2a22">');
     expect(home).toContain('stop-color="#f1c27d"');
-    expect(checkSite(earth, { offlineCopy: true }).verdict).toBe("pass");
-    expect(checkSite(navy, { offlineCopy: true }).verdict).toBe("pass");
+    expect(checkSite(earth).verdict).toBe("pass");
+    expect(checkSite(navy).verdict).toBe("pass");
   });
 });
 
@@ -258,7 +256,6 @@ describe("website mission end to end", () => {
       pageCount: 5,
       entry: "index.html",
       brandName: "Bright Tutors",
-      mock: true,
       theme: { palette: "earth", shape: "soft", source: "look" },
     });
     expect(siteFiles.find((a) => a.path === "styles.css")!.contentText).toContain("--accent: #b85c38;");
@@ -271,7 +268,7 @@ describe("website mission end to end", () => {
 
     const check = steps.find((s) => s.key === "site-check")!;
     expect(check.output).toMatchObject({ verdict: "pass", pagesChecked: 5, findings: [] });
-    expect((check.output!.warnings as string[]).join(" ")).toMatch(/drafted offline/);
+    expect(check.output!.warnings).toEqual([]);
     const review = arts.find((a) => a.title === "Site quality review")!;
     expect(review.contentText).toContain("**Verdict:** pass");
     expect(review.contentText).toContain("## Failures\n\n- None.");

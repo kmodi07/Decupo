@@ -294,7 +294,7 @@ describe("buyer-finding mission with mocked providers", () => {
     expect(leadData.rows).toHaveLength(6);
     const review = arts.find((a) => a.title === "Quality review")!.contentText!;
     expect(review).not.toContain("No buyer contacts have been retrieved");
-    expect(review).toContain("Offline placeholder content in: lead-search");
+    expect(review).toContain("Test data from the mock adapter in: lead-search");
 
     const [appr] = await listApprovals(h.db, t.ctx, { missionId: mission.id, status: "pending" });
     expect(appr!.actionClass).toBe("external_contact");
