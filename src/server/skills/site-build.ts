@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Skill } from "./types";
+import { detectArchetype } from "./site/archetype";
 import { brandNameFromGoal, generateSite, parseBrief, type BriefSections, type SitemapEntry } from "./site/generate";
 import { deriveTheme } from "./site/theme";
 
@@ -51,9 +52,21 @@ export const siteBuild: Skill = {
 
     const brandName = typeof ctx.input.brandName === "string" && ctx.input.brandName.trim() ? ctx.input.brandName.trim() : brandNameFromGoal(ctx.goal);
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
-    // The look is derived deterministically from what the user and the brief said; the source is reported, never guessed silently.
-    const theme = deriveTheme({ look: str(ctx.input.look), visual: brief.visual, tone: str(ctx.input.tone), goal: ctx.goal });
-    const files = generateSite({ brandName, goal: ctx.goal, pages, brief, tagline: str(ctx.input.tagline), theme });
+    // The business archetype decides layout, mark, cursor and copy; the look is derived from what the user and the brief said, and the source is reported.
+    const archetype = detectArchetype({ goal: ctx.goal, brandName, products: str(ctx.input.products), audience: str(ctx.input.audience) });
+    const theme = deriveTheme({ look: str(ctx.input.look), visual: brief.visual, tone: str(ctx.input.tone), goal: ctx.goal, fallback: archetype.defaults });
+    const files = generateSite({
+      brandName,
+      goal: ctx.goal,
+      pages,
+      brief,
+      tagline: str(ctx.input.tagline),
+      audience: str(ctx.input.audience),
+      products: str(ctx.input.products),
+      place: str(ctx.input.market) ?? str(ctx.input.place),
+      theme,
+      archetype,
+    });
 
     const artifactIds: string[] = [];
     const written: Array<{ path: string; artifactId: string; bytes: number }> = [];
@@ -66,8 +79,10 @@ export const siteBuild: Skill = {
       artifactIds.push(saved.artifactId);
       written.push({ path: f.path, ...saved });
     }
-    await ctx.log(`Generated ${files.length} files for ${pages.length} pages. ${theme.description}`, {
+    const built = `Built as ${archetype.label}: ${archetype.hero} hero, ${archetype.mark} mark, ${archetype.cursor} cursor, ${archetype.motion} motion.`;
+    await ctx.log(`Generated ${files.length} files for ${pages.length} pages. ${built} ${theme.description}`, {
       files: written.map((w) => w.path),
+      archetype: archetype.id,
       theme: { palette: theme.palette, type: theme.type, shape: theme.shape, source: theme.source },
     });
 
@@ -81,9 +96,10 @@ export const siteBuild: Skill = {
         pageCount: pages.length,
         brandName,
         generator: "template",
+        archetype: archetype.id,
         theme: { palette: theme.palette, type: theme.type, shape: theme.shape, source: theme.source, description: theme.description },
       },
-      summary: `${base} ${theme.description}`,
+      summary: `${base} ${built} ${theme.description}`,
     };
   },
 };

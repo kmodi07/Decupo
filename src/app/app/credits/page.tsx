@@ -1,3 +1,4 @@
+import { LocalTime } from "@/components/local-time";
 import { Card, Credits } from "@/components/ui";
 import { getCurrentUser } from "@/server/auth/current";
 import { getDb } from "@/server/db/client";
@@ -61,7 +62,9 @@ export default async function CreditsPage() {
           <tbody className="divide-y divide-line">
             {entries.map((e) => (
               <tr key={e.id}>
-                <td className="py-2 align-top tabular-nums text-mute">{e.createdAt.toLocaleString()}</td>
+                <td className="py-2 align-top tabular-nums text-mute">
+                  <LocalTime value={e.createdAt} />
+                </td>
                 <td className="py-2 align-top">
                   <span className="font-medium">{KIND_LABEL[e.kind] ?? e.kind}</span>
                   {e.description && <span className="block text-[13px] text-mute">{e.description}</span>}
@@ -76,7 +79,7 @@ export default async function CreditsPage() {
         </table>
         {entries.length === 0 && <p className="mt-2 text-[14px] text-mute">No movements yet.</p>}
         <p className="mt-4 text-[13px] text-mute">
-          Paid plans and top-ups are not available yet; pricing in the blueprint is a proposal. You have <Credits n={balance.balance} /> in total.
+          Paid plans and top-ups are not available yet. A step that cannot run is never charged. You have <Credits n={balance.balance} /> in total.
         </p>
       </Card>
     </div>

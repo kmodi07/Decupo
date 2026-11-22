@@ -5,6 +5,7 @@
  * not retrieved, and names are offered as suggestions only. English only by
  * design; sellers who need another language get the facts and translate.
  */
+import { detectArchetype, fill } from "./site/archetype";
 import { brandNameFromGoal } from "./site/generate";
 import { deriveTheme } from "./site/theme";
 
@@ -14,40 +15,46 @@ function lowerFirst(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
-function goalPhrase(goal: string): string {
-  return lowerFirst(goal.trim().replace(/[.!?]+$/, ""));
-}
+export type BriefInputs = { goal: string; brandName?: unknown; audience?: unknown; tone?: unknown; look?: unknown; products?: unknown; place?: unknown };
 
-export type BriefInputs = { goal: string; brandName?: unknown; audience?: unknown; tone?: unknown; look?: unknown };
-
-export function composeBrandBrief(i: BriefInputs): { markdown: string; brandName: string } {
+/**
+ * The brand brief is the one document the site, the outreach and the reel
+ * plan all read from. Its Positioning and Audience sections are written as
+ * copy (they can go on a page as they are); its Voice, Naming and Visual
+ * sections are notes for the owner and never reach a page.
+ */
+export function composeBrandBrief(i: BriefInputs): { markdown: string; brandName: string; archetype: string } {
   const brand = str(i.brandName) ?? brandNameFromGoal(i.goal);
-  const audience = str(i.audience);
+  const audience = str(i.audience)?.replace(/[.!?]+$/, "") ?? null;
   const tone = str(i.tone);
   const look = str(i.look);
-  const theme = deriveTheme({ look: look ?? undefined, tone: tone ?? undefined, goal: i.goal });
+  const place = str(i.place);
+  const arch = detectArchetype({ goal: i.goal, brandName: brand, products: str(i.products) ?? undefined, audience: audience ?? undefined });
+  const theme = deriveTheme({ look: look ?? undefined, tone: tone ?? undefined, goal: i.goal, fallback: arch.defaults });
   const toneWords = tone ? tone.split(/[,;/]|\band\b/).map((w) => w.trim()).filter(Boolean) : ["clear", "warm", "direct"];
   const words = brand.split(/\s+/);
   const core = words[0] ?? brand;
   const naming = [brand, `${core} Studio`, `${core} & Co`, `The ${core} Collective`].filter((v, idx, arr) => arr.indexOf(v) === idx).slice(0, 4);
+  const purpose = fill(arch.purpose, { brand, place });
 
   const markdown = [
     "# Brand brief",
     "",
     "## Positioning",
     "",
-    `${brand} exists to ${goalPhrase(i.goal)}.`,
-    audience ? `It is for ${lowerFirst(audience)}, and every page and message should speak to them first.` : "Who it is for has not been stated yet; see Audience.",
+    purpose,
     "",
-    "What to decide next: the one promise ${brand} makes that a competitor would not, and the proof behind it. Write it in one sentence and use it as the site headline.".replace("${brand}", brand),
+    audience ? `${brand} is for ${lowerFirst(audience)}, and every page and message speaks to them first.` : `Who ${brand} is for has not been stated yet. Answer "Who is this for?" on the mission and this line, the site copy and the outreach drafts will address them directly.`,
+    "",
+    `Promise to lead with: ${arch.headline}`,
     "",
     "## Audience",
     "",
-    audience ? audience : "Not specified. Answer \"Who is this for?\" on the mission and the brief, the site copy and the outreach drafts will address them directly.",
+    audience ?? "Not specified yet.",
     "",
-    "- What they are trying to get done",
-    "- What they worry about before buying",
-    "- Where they look first (search, referrals, marketplaces, social)",
+    "What they are usually trying to get done:",
+    "",
+    ...arch.audienceWants.map((w) => `- ${w}`),
     "",
     "## Voice",
     "",
@@ -61,10 +68,15 @@ export function composeBrandBrief(i: BriefInputs): { markdown: string; brandName
     "",
     "## Visual direction",
     "",
-    theme.description,
+    `Built as ${arch.label}: ${arch.hero} hero, ${arch.mark} logo mark, ${arch.motion} motion. ${theme.description}`,
+    "",
+    "## Next decisions for you",
+    "",
+    "- The one promise that a competitor would not make, and the proof behind it. Replace the headline with it when you have it.",
+    "- Real prices, hours, address and contact details: the site marks every one of these as to be added.",
     "",
   ].join("\n");
-  return { markdown, brandName: brand };
+  return { markdown, brandName: brand, archetype: arch.id };
 }
 
 export type MemoInputs = { goal: string; focus?: unknown; answers?: Record<string, unknown> };

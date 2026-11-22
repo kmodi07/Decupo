@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { composeBrandBrief, composeDeckOutline, composePageOutlines, composeResearchMemo } from "./compose";
+import { GROWTH_SKILLS } from "./growth";
 import { SALES_SKILLS } from "./sales";
 import { SOCIAL_SKILLS } from "./social";
 import { siteBuild } from "./site-build";
@@ -32,9 +33,17 @@ export const brandBrief: Skill = {
     inputSchema: anyRecord,
   },
   async run(ctx) {
-    const { markdown, brandName } = composeBrandBrief({ goal: ctx.goal, brandName: ctx.input.brandName, audience: ctx.input.audience, tone: ctx.input.tone, look: ctx.input.look });
+    const { markdown, brandName, archetype } = composeBrandBrief({
+      goal: ctx.goal,
+      brandName: ctx.input.brandName,
+      audience: ctx.input.audience,
+      tone: ctx.input.tone,
+      look: ctx.input.look,
+      products: ctx.input.products,
+      place: ctx.input.market ?? ctx.input.place,
+    });
     const artifact = await ctx.writeArtifact({ kind: "markdown", title: "Brand brief", content: markdown });
-    return { status: "succeeded", output: { artifactId: artifact.id, brandName }, summary: `Brand brief written for ${brandName}.` };
+    return { status: "succeeded", output: { artifactId: artifact.id, brandName, archetype }, summary: `Brand brief written for ${brandName}.` };
   },
 };
 
@@ -177,7 +186,10 @@ export const deployPreview: Skill = {
   },
   async run(ctx) {
     if (!(await ctx.hasConnection("hosting"))) {
-      return { status: "blocked", reason: "No hosting connection is configured for this workspace. Connect a provider under Connected apps, then retry." };
+      return {
+        status: "blocked",
+        reason: "No hosting connection yet, so nothing was deployed and nothing was charged. Download the site files from Deliverables and upload them to any static host, or wait for hosting connections to arrive under Connected apps.",
+      };
     }
     // The hosting adapter lands with the connector framework (B-30). Until then a
     // connected provider still yields a blocked result rather than a fake success.
@@ -185,4 +197,4 @@ export const deployPreview: Skill = {
   },
 };
 
-export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview, ...SALES_SKILLS, ...SOCIAL_SKILLS];
+export const BUILTIN_SKILLS: Skill[] = [brandBrief, researchMemo, siteOutline, siteBuild, siteCheck, deckOutline, qaReview, deployPreview, ...SALES_SKILLS, ...SOCIAL_SKILLS, ...GROWTH_SKILLS];

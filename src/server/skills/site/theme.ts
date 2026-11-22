@@ -44,7 +44,14 @@ export type SiteTheme = {
   };
 };
 
-export type ThemeSignals = { look?: string; visual?: string; tone?: string; goal: string };
+export type ThemeSignals = {
+  look?: string;
+  visual?: string;
+  tone?: string;
+  goal: string;
+  /** What to use when nothing describes a look: the business archetype's defaults. Navy/sans/regular without one. */
+  fallback?: { palette: Exclude<PaletteId, "custom">; type: TypeId; shape: ShapeId };
+};
 
 const PALETTES: Record<Exclude<PaletteId, "custom">, SiteTheme["colors"] & { label: string }> = {
   navy: {
@@ -182,7 +189,7 @@ const COLOR_WORDS: Array<[RegExp, string]> = [
 // Most specific cue first: an explicit "serif" or "luxury" outranks a generic "clean" or "minimal".
 const TYPE_WORDS: Array<[TypeId, RegExp]> = [
   ["mono", /\b(mono(space)?|technical|developer|engineering|code|terminal|industrial|brutalist)\b/i],
-  ["serif", /\b(serif|editorial|classic|elegant|luxur\w*|traditional|heritage|literary|timeless|refined|artisan\w*|craft)\b/i],
+  ["serif", /\b((?<!sans-)serif|editorial|classic|elegant|luxur\w*|traditional|heritage|literary|timeless|refined|artisan\w*|craft)\b/i],
   ["sans", /\b(modern|clean|minimal(ist)?|geometric|sans|tech|startup|saas|bold|playful|friendly|contemporary|sleek)\b/i],
 ];
 
@@ -227,7 +234,11 @@ export function deriveTheme(signals: ThemeSignals): SiteTheme {
   }
   if (!palette) {
     const fromGoal = GOAL_WORDS.find(([, re]) => re.test(signals.goal));
-    if (fromGoal) {
+    if (signals.fallback) {
+      // The archetype knows the business better than a stray colour word in the goal.
+      palette = signals.fallback.palette;
+      source = "goal";
+    } else if (fromGoal) {
       palette = fromGoal[0];
       source = "goal";
     } else {
@@ -238,8 +249,8 @@ export function deriveTheme(signals: ThemeSignals): SiteTheme {
 
   // Type and shape read all sources, since a single sentence may set all three.
   const all = [signals.look, signals.visual, signals.tone].filter(Boolean).join(" ");
-  const type = TYPE_WORDS.find(([, re]) => re.test(all))?.[0] ?? defaultTypeFor(palette);
-  const shape = SHAPE_WORDS.find(([, re]) => re.test(all))?.[0] ?? defaultShapeFor(palette);
+  const type = TYPE_WORDS.find(([, re]) => re.test(all))?.[0] ?? signals.fallback?.type ?? defaultTypeFor(palette);
+  const shape = SHAPE_WORDS.find(([, re]) => re.test(all))?.[0] ?? signals.fallback?.shape ?? defaultShapeFor(palette);
 
   const colors = palette === "custom" ? customPalette(customAccent!) : stripLabel(PALETTES[palette]);
   const paletteLabel = palette === "custom" ? `a custom palette built from ${customAccent}` : PALETTES[palette].label;

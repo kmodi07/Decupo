@@ -143,9 +143,10 @@ async function runStepJob(db: Db, job: Job, opts: WorkerOptions) {
     return;
   }
 
-  // Settle credits for what was actually used.
+  // Settle credits for what was actually used. A blocked step did no work (no connection, no
+  // budget), so it costs nothing; its share of the reservation is released with the mission.
   const tokens = usage.filter((u) => u.unit === "tokens").reduce((s, u) => s + u.quantity, 0);
-  const creditsUsed = skill.manifest.cost.baseCredits + Math.ceil((tokens / 1000) * skill.manifest.cost.creditsPerThousandTokens);
+  const creditsUsed = result.status === "blocked" ? 0 : skill.manifest.cost.baseCredits + Math.ceil((tokens / 1000) * skill.manifest.cost.creditsPerThousandTokens);
   let settled = 0;
   let overage = 0;
   if (mission.reservationId) {

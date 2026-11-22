@@ -159,7 +159,7 @@ export function ConnectedApps({ canManage, justConnected, oauthError }: { canMan
                         )}
                       </div>
                     ) : !p.adapter.enabled ? (
-                      <p className="text-[13.5px] leading-snug text-mute">{p.adapter.reason} Ask the operator to enable it; nothing can be connected until then.</p>
+                      <p className="text-[13.5px] leading-snug text-mute">Coming soon. Decupo has not switched this connection on yet, so nothing can be connected here for now. Missions that need it stop at that step and say so.</p>
                     ) : !canManage ? (
                       <p className="text-[13.5px] text-mute">Not connected.</p>
                     ) : p.authKind === "oauth" ? (

@@ -88,12 +88,13 @@ function StagePanel({ index }: { index: number }) {
             <p className="rounded-[16px] rounded-tl-[4px] bg-lavender-soft px-4 py-3 text-[15px]">Hi, I&apos;m Cupi. What should we make?</p>
           </div>
           <div className="ml-auto max-w-[85%] rounded-[16px] rounded-tr-[4px] bg-midnight px-4 py-3 text-[15px] text-cream">
-            Build me a beautiful website for my tutoring company
+            Help Sri Ganesh Agency in Bharuch sell more LG fridges and TVs this season
           </div>
           <div className="flex items-start gap-3">
             <CupiMark size={40} />
             <p className="rounded-[16px] rounded-tl-[4px] bg-lavender-soft px-4 py-3 text-[15px]">
-              A website mission: 5 steps with Nova, Forge and Vale, about 275 credits. One step waits for your approval. I&apos;d ask: who is the site for?
+              A sales-growth mission: 5 steps with Scout, Echo, Motion, Vale and Pulse, about 200 credits. One step waits for your approval. I read the business, the area and
+              what you sell from what you wrote. One thing I&apos;d ask: how should customers reach you?
             </p>
           </div>
         </div>
@@ -102,14 +103,14 @@ function StagePanel({ index }: { index: number }) {
       return (
         <div className="space-y-3">
           <p className="text-[13px] font-medium text-mute">Cupi&apos;s plan</p>
-          <h3 className="text-[20px] font-bold tracking-tight">Build me a beautiful website for my tutoring company</h3>
+          <h3 className="text-[20px] font-bold tracking-tight">Help Sri Ganesh Agency in Bharuch sell more LG fridges and TVs this season</h3>
           <ol className="space-y-2 text-[14.5px]">
             {[
-              ["Nova", "Draft the brand brief", "about 50"],
-              ["Forge", "Outline the site", "about 90"],
-              ["Forge", "Build the site", "about 100"],
-              ["Vale", "Check the site", "about 25"],
-              ["Forge", "Deploy preview (needs approval)", "about 10"],
+              ["Scout", "Research what sells locally", "about 70"],
+              ["Echo", "Write the four-week sales plan", "about 50"],
+              ["Motion", "Plan a week of reels", "about 50"],
+              ["Vale", "Quality review", "about 20"],
+              ["Pulse", "Post the first reel (needs approval)", "about 10"],
             ].map(([agent, title, cost], i) => (
               <li key={title} className="flex items-center gap-3">
                 <span className="w-4 text-right text-[12.5px] tabular-nums text-mute">{i + 1}</span>
@@ -122,8 +123,8 @@ function StagePanel({ index }: { index: number }) {
           </ol>
           <div className="rounded-[14px] bg-midnight p-4 text-cream">
             <p className="text-[12.5px] text-cream/70">Estimated cost</p>
-            <p className="text-[24px] font-bold tracking-tight">275 credits</p>
-            <p className="mt-1 text-[12.5px] text-cream/70">Reserved when you say go. Each step settles what it really used.</p>
+            <p className="text-[24px] font-bold tracking-tight">200 credits</p>
+            <p className="mt-1 text-[12.5px] text-cream/70">Reserved when you say go. Each step settles what it really used; a step that cannot run is free.</p>
           </div>
         </div>
       );
@@ -131,21 +132,21 @@ function StagePanel({ index }: { index: number }) {
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-[14px] bg-cream-deep px-4 py-3">
-            <span className="text-[15px]">Reserve 275 credits and start?</span>
+            <span className="text-[15px]">Reserve 200 credits and start?</span>
             <span className="rounded-[var(--radius-control)] bg-coral px-4 py-2 text-[14px] font-semibold text-midnight">Go ahead</span>
           </div>
           <dl className="grid grid-cols-3 gap-3 rounded-[14px] bg-midnight p-4 text-cream">
             <div>
               <dt className="text-[12px] text-cream/60">Balance</dt>
-              <dd className="text-[20px] font-bold tabular-nums">1,000</dd>
+              <dd className="text-[20px] font-bold tabular-nums">500</dd>
             </div>
             <div>
               <dt className="text-[12px] text-cream/60">Reserved</dt>
-              <dd className="text-[20px] font-bold tabular-nums">275</dd>
+              <dd className="text-[20px] font-bold tabular-nums">200</dd>
             </div>
             <div>
               <dt className="text-[12px] text-cream/60">Available</dt>
-              <dd className="text-[20px] font-bold tabular-nums">725</dd>
+              <dd className="text-[20px] font-bold tabular-nums">300</dd>
             </div>
           </dl>
           <p className="text-[13.5px] text-mute">A ceiling stops steps that would overspend. Nothing is ever overdrawn.</p>
@@ -155,11 +156,11 @@ function StagePanel({ index }: { index: number }) {
       return (
         <ol className="space-y-2.5 text-[14.5px]">
           {[
-            ["Nova", "Draft the brand brief", "Done", "done"],
-            ["Forge", "Outline the site", "Done", "done"],
-            ["Forge", "Build the site", "In progress", "active"],
-            ["Vale", "Check the site", "Ready", "quiet"],
-            ["Forge", "Deploy preview", "Waits for approval", "needs_you"],
+            ["Scout", "Research what sells locally", "Done", "done"],
+            ["Echo", "Write the four-week sales plan", "Done", "done"],
+            ["Motion", "Plan a week of reels", "In progress", "active"],
+            ["Vale", "Quality review", "Ready", "quiet"],
+            ["Pulse", "Post the first reel", "Waits for approval", "needs_you"],
           ].map(([agent, title, label, tone]) => (
             <li key={title} className="flex items-center gap-3 rounded-[12px] px-2 py-2 odd:bg-cream-deep/60">
               <AgentBadge name={agent!} size="sm" />
@@ -177,18 +178,18 @@ function StagePanel({ index }: { index: number }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-[14px] border border-line bg-cream-deep/60 p-4">
             <div className="flex items-center gap-2">
-              <AgentBadge name="Forge" size="sm" />
-              <span className="font-semibold">Website</span>
-              <span className="text-[12.5px] text-mute">5 pages, 6 files</span>
-              <Pill tone="done">Checks passed</Pill>
+              <AgentBadge name="Echo" size="sm" />
+              <span className="font-semibold">Four-week sales plan</span>
+              <span className="text-[12.5px] text-mute">3 levers, 4 WhatsApp broadcasts</span>
+              <Pill tone="done">Ready to use</Pill>
             </div>
-            <span className="rounded-[var(--radius-control)] bg-coral px-3 py-1.5 text-[13px] font-semibold text-midnight">Open preview</span>
+            <span className="rounded-[var(--radius-control)] bg-coral px-3 py-1.5 text-[13px] font-semibold text-midnight">Open</span>
           </div>
           <ul className="divide-y divide-line text-[14.5px]">
             {[
-              ["Nova", "Brand brief"],
-              ["Forge", "Sitemap"],
-              ["Vale", "Site quality review"],
+              ["Scout", "Research memo"],
+              ["Motion", "Reel plan"],
+              ["Vale", "Quality review"],
             ].map(([agent, title]) => (
               <li key={title} className="flex items-center gap-2 py-2.5">
                 <AgentBadge name={agent!} size="sm" />
@@ -197,7 +198,7 @@ function StagePanel({ index }: { index: number }) {
               </li>
             ))}
           </ul>
-          <p className="rounded-[12px] bg-mint/40 px-3 py-2 text-[13.5px] text-mint-deep">Settled 265 of 275 credits. 10 unused credits released.</p>
+          <p className="rounded-[12px] bg-mint/40 px-3 py-2 text-[13.5px] text-mint-deep">Settled 180 of 200 credits. The posting step waits for your account and costs nothing; 20 credits released.</p>
         </div>
       );
   }

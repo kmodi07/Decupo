@@ -274,6 +274,8 @@ function contactLines(o: Offer): string {
 }
 
 function englishEmail(o: Offer, s: Segment, qty: string, price: string, from: string): { subject: string; body: string } {
+  // The segment's notes are written for the seller ("they buy..."); the email speaks to the buyer.
+  const firstAsk = s.asksFor.split(/[,;]/)[0]!.trim().replace(/\.$/, "").toLowerCase();
   return {
     subject: `${o.product}: ${qty} available${o.market ? `, ${o.market}` : ""}`,
     body: [
@@ -281,7 +283,7 @@ function englishEmail(o: Offer, s: Segment, qty: string, price: string, from: st
       "",
       `I have ${qty} of ${o.product}${from} available now at ${price}.`,
       "",
-      `${s.why} I can share ${s.asksFor.split(",")[0]!.toLowerCase()} and a sample on request${o.terms ? `; terms: ${o.terms}` : ""}.`,
+      `I am writing to ${s.name.toLowerCase().replace(/^(the )?/, "")} like yours. I can share ${firstAsk} and a sample on request${o.terms ? `; terms: ${o.terms}` : ""}.`,
       "",
       "Would a short call this week suit you? Reply here or reach me below.",
       "",
@@ -426,7 +428,7 @@ export const leadSearch: Skill = {
         status: "blocked",
         reason:
           c.code === "no_connection"
-            ? "No lead-data or web-search connection is configured for this workspace. Connect one under Connected apps, or add contacts to the lead list template yourself, then retry."
+            ? "No lead-data or web-search connection yet, so no contacts were looked up and nothing was charged. Add contacts to the lead list template yourself and retry, or wait for lead-data connections to arrive under Connected apps."
             : c.reason,
         output: { leadsRetrieved: 0 },
       };

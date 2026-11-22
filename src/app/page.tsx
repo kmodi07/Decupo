@@ -9,16 +9,16 @@ import { AGENT_ROLES } from "@/server/skills/types";
 
 const TODAY: { label: string; status: "supported" | "needs_connection" | "not_available" }[] = [
   { label: "Mission planning with estimates and approvals", status: "supported" },
-  { label: "Brand briefs, research memos, site and deck outlines", status: "supported" },
-  { label: "Generated multi-page website with preview and quality check", status: "supported" },
+  { label: "Four-week sales plan with offers and WhatsApp broadcast drafts for a shop", status: "supported" },
   { label: "Offer sheets, buyer maps and outreach drafts for selling stock", status: "supported" },
-  { label: "Finding and contacting buyers from your own accounts", status: "needs_connection" },
+  { label: "Local market research and a weekly reel plan", status: "supported" },
+  { label: "Website built for your kind of business, with preview and quality check", status: "supported" },
+  { label: "Brand briefs, research memos, site and deck outlines", status: "supported" },
   { label: "Live updates, pause, resume, cancel, credit ledger", status: "supported" },
+  { label: "Finding and contacting buyers from your own accounts", status: "needs_connection" },
+  { label: "Posting reels to Instagram or YouTube", status: "needs_connection" },
   { label: "Deploying the site to hosting", status: "needs_connection" },
   { label: "Editable slide decks with citations", status: "not_available" },
-  { label: "Local market research and a weekly reel plan in your language", status: "supported" },
-  { label: "Posting reels to Instagram or YouTube", status: "needs_connection" },
-  { label: "Sending email or messages", status: "not_available" },
 ];
 
 export default async function Landing() {
@@ -45,21 +45,12 @@ export default async function Landing() {
         </div>
       </nav>
 
-      {/* Front door: Cupi greets the visitor and reads the goal as they type. */}
+      {/* Front door: Cupi, one sentence, one arrow. The plan appears below after send. */}
       <section className="hero-scene relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-5 pb-16 pt-8 md:pt-12">
-          <div className="mx-auto max-w-[22ch] text-center md:max-w-none md:text-left">
-            <h1 className="text-[40px] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[56px] md:max-w-[14ch]">Say the dream. Watch it happen.</h1>
-            <p className="mt-4 max-w-[52ch] text-[17px] leading-relaxed text-ink md:text-[18px]">
-              Meet Cupi, who turns a short goal into a priced mission and sends a small crew of specialist agents to do it, step by step, with
-              your approval before anything leaves the building. A website, a deck, research, or buyers for the stock in your field.
-            </p>
-          </div>
-          <div className="mt-8 md:mt-10">
-            <Suspense>
-              <CupiIntake />
-            </Suspense>
-          </div>
+        <div className="mx-auto max-w-6xl px-5 pb-16 pt-6 md:pt-10">
+          <Suspense>
+            <CupiIntake />
+          </Suspense>
         </div>
       </section>
 
@@ -67,7 +58,10 @@ export default async function Landing() {
       <section aria-label="What works today" className="border-y border-line bg-white/60">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4 text-[13.5px]">
           <span className="font-semibold">One real customer so far: Volt IQ Academy was built here.</span>
-          <span className="text-mute">Websites, briefs, research, buyer maps, outreach drafts and reel plans run today, in English, Hindi or Gujarati. Deploying, decks, lead search, sending and posting are shown as not ready, never faked.</span>
+          <span className="text-mute">
+            Made for shops, traders and tutors who want more customers, in India first. Sales plans, buyer maps, outreach drafts, reel plans and websites run today;
+            posting, sending and lead search are shown as not ready, never faked.
+          </span>
         </div>
       </section>
 

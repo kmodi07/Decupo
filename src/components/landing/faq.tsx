@@ -13,11 +13,15 @@ const QA: Array<[string, string]> = [
   ],
   [
     "What can it actually do today?",
-    "Plan missions with honest estimates, write brand briefs, research memos and outlines, generate a multi-page website with a private preview and an automatic quality check, and prepare a sale: an offer sheet from your stock and price, a map of who buys it in your market, and outreach drafts for each. Deployment, decks, finding contacts and sending messages need connections that are not built yet, and the planner says so.",
+    "Plan missions with honest estimates, write a four-week sales plan for a local business, prepare a sale of stock (offer sheet, buyer map, outreach drafts), plan a week of reels, write brand briefs, research memos and outlines, and generate a website built for your kind of business with a private preview and an automatic quality check. Deployment, decks, finding contacts and sending messages need connections that are not built yet, and the planner says so.",
   ],
   [
     "Is the content real?",
     "Yes. Briefs, memos, outlines, sites and outreach drafts are written in English from your goal and your answers, so every figure and name in them came from you. Nothing invents sources, prices or statistics, and Vale's review lists what still needs a source or a decision from you.",
+  ],
+  [
+    "I run a shop. How does this get me more customers?",
+    "Say the shop, the town and what you sell. Cupi researches what sells locally, writes a four-week plan with offers and the WhatsApp broadcasts to send each week, plans seven reels to shoot, and reviews all of it. You copy the messages to your customers today; posting from your own Instagram or YouTube waits for your approval once the account is connected.",
   ],
   [
     "Can it sell my stock for me?",

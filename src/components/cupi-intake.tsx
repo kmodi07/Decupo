@@ -1,38 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
 import { cleanAnswers, readOfPlan } from "@/lib/plan-read";
 import type { MissionPlan } from "@/server/planner/types";
+import { AgentCursor, type CursorMode } from "./agent-cursor";
 import { CupiAvatar, type CupiMood } from "./cupi-avatar";
 import { PlanCard } from "./plan-card";
-import { Button, LinkButton, Notice } from "./ui";
+import { LinkButton, Notice } from "./ui";
 
-const EXAMPLES = [
-  "a website for my tutoring company",
-  "buyers in Delhi for 500 kg of ashwagandha root at Rs 450 per kg",
-  "a week of Instagram reels for my electronics shop in Bharuch",
-  "a cited presentation on inflation",
-  "a topic bank for my cooking channel",
-  "research on the market for pet subscription boxes",
-  "outreach to qualified sales prospects",
+const PLAN_TOUR = ['[data-cupi="plan-title"]', '[data-cupi="step"]:nth-of-type(1)', '[data-cupi="step"]:nth-of-type(2)', '[data-cupi="step"]:nth-of-type(3)', '[data-cupi="estimate"]', '[data-cupi="cta"]'];
+
+export const EXAMPLES = [
+  "Help Sri Ganesh Agency in Bharuch sell more LG fridges and TVs this season",
+  "Find buyers in Delhi for 500 kg of ashwagandha root at Rs 450 per kg",
+  "Make a website for my tutoring company",
+  "Post a week of Instagram reels for my electronics shop in Bharuch",
+  "Research the market for pet subscription boxes",
 ];
 
-/** Example chips read naturally whatever the mission type. */
-function phrase(ex: string): string {
-  if (ex.startsWith("buyers")) return `Find ${ex}`;
-  if (ex.startsWith("a week of")) return `Post ${ex}`;
-  return `Make ${ex}`;
-}
-
-const GREETINGS = ["Hi, I'm Cupi. What should we make?", "Tell me the dream in a sentence or two.", "Start with what you want to exist by next week."];
-
 /**
- * The front door. Cupi greets the visitor, reads the goal as they type, and
- * answers with a one-line read from the real planner (which agents, how many
- * steps, roughly what it costs) before showing the full plan. Nothing is saved
- * until they sign up; the preview endpoint is public and rule-based.
+ * The front door, kept as simple as a search box: Cupi, one sentence, one
+ * arrow. The plan appears below only after the person presses send, with at
+ * most three optional questions, then a single button to create the account.
+ * Nothing is saved until they sign up; the preview endpoint is public and
+ * rule-based.
  */
 export function CupiIntake() {
   const params = useSearchParams();
@@ -40,125 +33,125 @@ export function CupiIntake() {
   const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<MissionPlan | null>(null);
-  const [showFull, setShowFull] = useState(false);
+  const [planFor, setPlanFor] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [greeting] = useState(() => GREETINGS[0]!);
+  const [toured, setToured] = useState(false);
   const placeholder = useTypedPlaceholder(EXAMPLES, focused || goal.length > 0);
-  const lastRead = useRef("");
+  const planRef = useRef<HTMLDivElement | null>(null);
 
-  // Live read: ask the planner what it would do, debounced, while the person types.
-  function updateGoal(value: string) {
-    setGoal(value);
-    if (value.trim().length < 8) {
-      setPlan(null);
-      setShowFull(false);
-      lastRead.current = "";
+  async function submit(e?: FormEvent) {
+    e?.preventDefault();
+    const trimmed = goal.trim();
+    if (trimmed.length < 8 || busy) return;
+    if (plan && planFor === trimmed) {
+      planRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ plan: MissionPlan }>("/api/plan/preview", { json: { goal: trimmed } });
+      setPlan(res.plan);
+      setPlanFor(trimmed);
+      setAnswers({});
+      setToured(false);
+      setCelebrate(true);
+      setTimeout(() => setCelebrate(false), 2200);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
     }
   }
 
   useEffect(() => {
-    const trimmed = goal.trim();
-    if (trimmed.length < 8 || trimmed === lastRead.current) return;
-    const t = setTimeout(async () => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await api<{ plan: MissionPlan }>("/api/plan/preview", { json: { goal: trimmed } });
-        lastRead.current = trimmed;
-        setPlan(res.plan);
-        setShowFull(false);
-        setCelebrate(true);
-        setTimeout(() => setCelebrate(false), 2200);
-      } catch (err) {
-        setError(errorMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    }, 700);
-    return () => clearTimeout(t);
-  }, [goal]);
+    if (plan) planRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [plan]);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    if (plan) setShowFull(true);
+  function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void submit();
+    }
   }
 
   const mood: CupiMood = busy ? "thinking" : celebrate ? "happy" : focused ? "listening" : "idle";
-  const bubble = busy ? "Thinking about who to bring and what it costs." : plan ? readOfPlan(plan, { withQuestion: true }) : focused && goal.trim().length < 8 ? "Go on, I'm listening." : greeting;
+  const ready = goal.trim().length >= 8;
+  // Cupi's cursor: reads along while typing, circles the arrow while planning, then walks the plan.
+  const cursorMode: CursorMode = busy ? "think" : plan && planFor === goal.trim() ? (toured ? "rest" : "tour") : "watch";
 
   return (
-    <div className="space-y-8">
-      <div className="grid items-end gap-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:gap-10">
-        {/* Cupi and the speech bubble */}
-        <div className="cupi-stage relative mx-auto w-full max-w-[380px]">
+    <div className="space-y-10">
+      <AgentCursor mode={cursorMode} anchor=".cupi-box" tour={PLAN_TOUR} typing={goal.length} onTourEnd={() => setToured(true)} />
+      <div className="mx-auto flex max-w-[760px] flex-col items-center">
+        <div className="cupi-stage relative mb-2 w-[150px]">
           <div className="cupi-orb cupi-orb-a" aria-hidden />
           <div className="cupi-orb cupi-orb-b" aria-hidden />
-          <CupiAvatar mood={mood} size={300} className="relative mx-auto block w-full max-w-[300px]" />
+          <CupiAvatar mood={mood} size={150} className="relative block w-full" />
         </div>
+        <h1 className="text-center text-[38px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[58px]">Say the dream. Watch it happen.</h1>
+        <p className="mt-4 max-w-[46ch] text-center text-[17px] leading-relaxed text-ink sm:text-[19px]">Meet Cupi, the crew lead who turns one sentence into finished work.</p>
 
-        <div>
-          <p className="cupi-bubble" role="status" aria-live="polite">
-            <span key={bubble} className="cupi-bubble-text">
-              {bubble}
-            </span>
-          </p>
-          <form onSubmit={submit} className="mt-4 space-y-3">
-            <label className="block">
-              <span className="sr-only">Tell Cupi the goal</span>
-              <textarea
-                name="goal"
-                rows={3}
-                required
-                minLength={8}
-                maxLength={500}
-                placeholder={placeholder}
-                value={goal}
-                onChange={(e) => updateGoal(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                className="cupi-input w-full resize-none rounded-[22px] border border-line bg-white px-5 py-4 text-[18px] leading-relaxed text-midnight shadow-[var(--shadow-float)] placeholder:text-mute/60 focus:border-lavender"
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={!plan || busy}>
-                {busy ? "Cupi is planning" : showFull ? "Plan is below" : "Show me the full plan"}
-              </Button>
-              <span className="text-[13.5px] text-mute">Nothing runs until you approve the estimate.</span>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {EXAMPLES.slice(0, 3).map((ex) => (
-                <button
-                  type="button"
-                  key={ex}
-                  onClick={() => updateGoal(phrase(ex))}
-                  className="rounded-[var(--radius-pill)] border border-line bg-white/70 px-3 py-1.5 text-[13px] text-ink transition-colors hover:border-lavender hover:bg-lavender-soft"
-                >
-                  {ex}
-                </button>
-              ))}
-            </div>
-            {error && <Notice tone="error">{error}</Notice>}
-          </form>
-        </div>
+        <form onSubmit={submit} className="cupi-box mt-8 w-full">
+          <label className="block">
+            <span className="sr-only">Tell Cupi the goal</span>
+            <textarea
+              name="goal"
+              rows={2}
+              required
+              minLength={8}
+              maxLength={500}
+              placeholder={placeholder}
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              onKeyDown={onKey}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              className="cupi-input w-full resize-none bg-transparent px-6 pb-14 pt-5 text-[19px] leading-relaxed text-midnight outline-none placeholder:text-mute/55 sm:text-[21px]"
+            />
+          </label>
+          <button type="submit" className="cupi-send" disabled={!ready || busy} aria-label={busy ? "Cupi is planning" : "Show me the plan"} title="Show me the plan">
+            {busy ? (
+              <span className="cupi-send-dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            )}
+          </button>
+        </form>
+        <p className="mt-3 text-center text-[13.5px] text-mute">{plan ? readOfPlan(plan) : "Free to start. Nothing runs until you approve the plan and the price."}</p>
+        {error && (
+          <div className="mt-3 w-full">
+            <Notice tone="error">{error}</Notice>
+          </div>
+        )}
       </div>
 
-      {plan && showFull && (
-        <div className="cupi-plan-in">
+      {plan && (
+        <div ref={planRef} className="cupi-plan-in scroll-mt-24">
           <PlanCard
             plan={plan}
             footer={
               <div className="space-y-4">
                 {plan.questions.length > 0 && (
                   <fieldset>
-                    <legend className="text-[13.5px] font-semibold text-ink">Cupi would ask. All optional; blanks are marked, never guessed.</legend>
+                    <legend className="text-[13.5px] font-semibold text-ink">
+                      {plan.questions.length === 1 ? "One optional question." : `${plan.questions.length} optional questions.`} Blanks are marked, never guessed.
+                    </legend>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       {plan.questions.map((q) => (
                         <label key={q.key} className="block">
                           <span className="mb-1 block text-[13px] text-mute">{q.prompt}</span>
                           <input
                             name={`answer-${q.key}`}
+                            aria-label={q.prompt}
                             value={answers[q.key] ?? ""}
                             maxLength={500}
                             onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}
@@ -171,7 +164,9 @@ export function CupiIntake() {
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-[14px] text-ink">Sign up to run this with 500 free credits. Your goal and answers come with you.</span>
-                  <LinkButton href={signupHref(goal, answers)}>Create my account</LinkButton>
+                  <span data-cupi="cta">
+                    <LinkButton href={signupHref(goal, answers)}>Create my account</LinkButton>
+                  </span>
                 </div>
               </div>
             }
@@ -191,7 +186,7 @@ function signupHref(goal: string, answers: Record<string, string>): string {
 
 /** Typewriter placeholder that cycles through examples until the person starts typing. */
 function useTypedPlaceholder(examples: string[], paused: boolean): string {
-  const [text, setText] = useState(phrase(examples[0]!));
+  const [text, setText] = useState(examples[0]!);
   const reduced = useRef(false);
   useEffect(() => {
     reduced.current = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -203,16 +198,16 @@ function useTypedPlaceholder(examples: string[], paused: boolean): string {
     let deleting = false;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      const full = phrase(examples[i]!);
+      const full = examples[i]!;
       if (!deleting) {
         pos += 1;
         setText(full.slice(0, pos));
         if (pos >= full.length) {
           deleting = true;
-          timer = setTimeout(tick, 1800);
+          timer = setTimeout(tick, 2200);
           return;
         }
-        timer = setTimeout(tick, 38);
+        timer = setTimeout(tick, 34);
       } else {
         pos -= 2;
         setText(full.slice(0, Math.max(5, pos)));
@@ -223,7 +218,7 @@ function useTypedPlaceholder(examples: string[], paused: boolean): string {
           timer = setTimeout(tick, 350);
           return;
         }
-        timer = setTimeout(tick, 18);
+        timer = setTimeout(tick, 16);
       }
     };
     timer = setTimeout(tick, 900);

@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { DbHandle } from "@/server/db/client";
 import { closeTestDb, makeTenant, makeTestDb } from "./helpers/db";
-import { brandNameFromGoal, CONTACT_FORM_NOTICE, generateSite, parseBrief, type SiteFile } from "@/server/skills/site/generate";
+import { brandNameFromGoal, CONTACT_FORM_NOTICE, detectArchetype, generateSite, parseBrief, type SiteFile } from "@/server/skills/site/generate";
+import { composeBrandBrief } from "@/server/skills/compose";
 import { checkSite, renderReport, resolveHref } from "@/server/skills/site/check";
 import { contrastRatio, customPalette, deriveTheme, hexToHsl, hslToHex, TYPE_STACKS } from "@/server/skills/site/theme";
 import { authorizeMission, createMission, decideApproval, getMission, listApprovals, listArtifacts, listSteps } from "@/server/missions/service";
@@ -82,6 +83,69 @@ describe("site generator (pure)", () => {
     const brief = parseBrief("# Brand brief\n\n## Positioning\n\nCalm tutoring.\n\n## Audience\n\nParents.\n\n## Voice\n\nWarm.\n");
     expect(brief).toEqual({ positioning: "Calm tutoring.", audience: "Parents.", voice: "Warm." });
     expect(parseBrief("# Brand brief\n\n> **Offline draft.** nothing\n\nGoal: x")).toEqual({});
+  });
+});
+
+describe("site archetypes (pure)", () => {
+  it("picks the business archetype from the goal and answers", () => {
+    expect(detectArchetype({ goal: "Build a website for my tutoring company" }).id).toBe("education");
+    expect(detectArchetype({ goal: "Website for Sri Ganesh Agency", products: "LG fridges and TVs" }).id).toBe("electronics");
+    expect(detectArchetype({ goal: "A site for my basmati rice trading business in Bharuch" }).id).toBe("grains");
+    expect(detectArchetype({ goal: "Website for my pottery studio" }).id).toBe("crafts");
+    expect(detectArchetype({ goal: "Website for my law practice" }).id).toBe("professional");
+    expect(detectArchetype({ goal: "Make me a website" }).id).toBe("general");
+  });
+
+  it("gives each business its own layout, mark, cursor, texture, tempo and copy", () => {
+    const tutor = generateSite({ brandName: "Brightpath Tutors", goal: "Make a website for my tutoring company", pages: PAGES, audience: "parents of high-school students in Austin, Texas" });
+    const shop = generateSite({ brandName: "Sri Ganesh Agency", goal: "Website for Sri Ganesh Agency in Bharuch", pages: PAGES, products: "LG fridges and TVs", place: "Bharuch" });
+    const home = (f: SiteFile[]) => f.find((x) => x.path === "index.html")!.content;
+    const css = (f: SiteFile[]) => f.find((x) => x.path === "styles.css")!.content;
+
+    expect(home(tutor)).toContain('class="page-home arch-education layout-split"');
+    expect(home(shop)).toContain('class="page-home arch-electronics layout-shelf"');
+    expect(home(shop)).toContain("shelf-card-3");
+    expect(home(shop)).toContain("Ask for today&#39;s price");
+    expect(home(tutor)).toContain("Book a first lesson");
+    // Logo marks carry the initial and differ by business.
+    expect(home(tutor)).toMatch(/<svg class="logo"[^>]*>.*<text[^>]*>B<\/text>/);
+    expect(home(shop)).toMatch(/M10 2v3M15 2v3/); // chip pins
+    // Cursor, texture and tempo live in the stylesheet, guarded for fine pointers only.
+    expect(css(tutor)).toContain("Cursor: chalk");
+    expect(css(tutor)).toContain("@media (pointer: fine)");
+    expect(css(tutor)).toContain("Texture: ruled");
+    expect(css(shop)).toContain("Cursor: ring");
+    expect(css(shop)).toContain("Texture: grid");
+    expect(css(shop)).toContain("--t: 220ms;");
+    expect(css(tutor)).toContain("--t: 400ms;");
+    // Audience and place reach the copy; brief-only notes never do.
+    expect(home(tutor)).toContain("For parents of high-school students in Austin, Texas.");
+    expect(home(tutor)).toContain("Who we serve");
+    expect(tutor.find((x) => x.path === "about.html")!.content).not.toMatch(/Look: |display face|What to decide next/);
+    expect(tutor.find((x) => x.path === "services.html")!.content).toContain("Exam preparation");
+    expect(shop.find((x) => x.path === "services.html")!.content).toContain("Delivery and installation");
+    expect(home(tutor)).toContain("<title>Brightpath Tutors - Lessons that meet each student where they are</title>");
+    for (const files of [tutor, shop]) expect(checkSite(files).verdict).toBe("pass");
+  });
+
+  it("drops a positioning line that only echoes the goal and keeps a real one", () => {
+    const echo = generateSite({ brandName: "Acme Tutors", goal: "Make a website for my tutoring company", pages: PAGES, brief: { positioning: "Acme Tutors exists to make a website for my tutoring company." } });
+    expect(echo.find((x) => x.path === "index.html")!.content).not.toContain("exists to make a website");
+    const real = generateSite({ brandName: "Acme Tutors", goal: "Make a website for my tutoring company", pages: PAGES, brief: { positioning: "Acme Tutors gets Class 10 students through board exams with weekly one-to-one lessons." } });
+    expect(real.find((x) => x.path === "index.html")!.content).toContain("gets Class 10 students through board exams");
+  });
+
+  it("the brand brief and the site agree on the look", () => {
+    const { markdown } = composeBrandBrief({ goal: "Make a website for my tutoring company", brandName: "Brightpath Tutors", look: "warm, friendly, soft green and cream", tone: "encouraging, clear, no jargon", audience: "parents of high-school students" });
+    expect(markdown).toContain("Brightpath Tutors teaches with one-to-one and small-group lessons");
+    expect(markdown).not.toContain("exists to make a website");
+    expect(markdown).toContain("Brightpath Tutors is for parents of high-school students");
+    expect(markdown).toContain("What they are usually trying to get done:");
+    const visual = /## Visual direction\n\n(.+)/.exec(markdown)![1]!;
+    const built = generateSite({ brandName: "Brightpath Tutors", goal: "Make a website for my tutoring company", pages: PAGES, look: "warm, friendly, soft green and cream", tone: "encouraging, clear, no jargon", brief: parseBrief(markdown) });
+    const css = built.find((x) => x.path === "styles.css")!.content;
+    const face = /a (sans-serif|serif|monospace) display face/.exec(visual)![1];
+    expect(css).toContain(`--font-display: ${TYPE_STACKS[face === "sans-serif" ? "sans" : face === "monospace" ? "mono" : "serif"]};`);
   });
 });
 
@@ -225,7 +289,9 @@ describe("website mission end to end", () => {
       goal: "Build me a beautiful website for my tutoring company",
       answers: { brandName: "Bright Tutors", look: "warm terracotta, rounded" },
     });
-    expect(plan.questions.map((q) => q.key)).toContain("look");
+    // Answered questions are not asked again; the rest stay optional.
+    expect(plan.questions.map((q) => q.key)).not.toContain("look");
+    expect(plan.questions.map((q) => q.key)).toContain("audience");
     expect(plan.templateId).toBe("website");
     expect(plan.steps.map((s) => s.key)).toEqual(["brand-brief", "site-outline", "site-build", "site-check", "deploy-preview"]);
     expect(plan.capabilities.find((c) => c.label.startsWith("Generated site code"))?.status).toBe("supported");
@@ -249,7 +315,11 @@ describe("website mission end to end", () => {
     expect(siteFiles.map((a) => a.path)).toEqual(["index.html", "about.html", "services.html", "pricing.html", "contact.html", "styles.css"]);
     expect(siteFiles.map((a) => a.kind)).toEqual(["html", "html", "html", "html", "html", "css"]);
     expect(siteFiles.find((a) => a.path === "styles.css")!.mimeType).toBe("text/css");
-    expect(siteFiles[0]!.contentText).toContain("<h1>Bright Tutors</h1>");
+    // Built as a tutoring business: the brand in the eyebrow, a promise as the headline, no brief notes on the page.
+    expect(siteFiles[0]!.contentText).toContain('<p class="eyebrow">Bright Tutors</p>');
+    expect(siteFiles[0]!.contentText).toContain("<h1>Lessons that meet each student where they are.</h1>");
+    expect(siteFiles[0]!.contentText).toContain("One-to-one lessons");
+    expect(siteFiles[0]!.contentText).not.toMatch(/Look: |What to decide next|Short sentences, concrete nouns/);
 
     const build = steps.find((s) => s.key === "site-build")!;
     expect(build.output).toMatchObject({
@@ -361,7 +431,7 @@ describe("preview route", () => {
     expect(index.headers.get("x-content-type-options")).toBe("nosniff");
     expect(index.headers.get("cache-control")).toContain("no-store");
     const html = await index.text();
-    expect(html).toContain("<h1>Bakery</h1>");
+    expect(html).toContain('<p class="eyebrow">Bakery</p>');
     expect(html).toContain('href="styles.css"');
 
     const css = await previewRoute(req(`/api/missions/${mission.id}/preview/styles.css`, { cookie: ca }), params(mission.id, ["styles.css"]));

@@ -4,18 +4,19 @@
  * Pure and deterministic: no network, no LLM, no user-provided code is ever
  * executed. The output is a flat file tree (index.html, one page per sitemap
  * entry, styles.css) that works from any directory because every link is
- * relative. Copy comes from the brand brief when it has real sections and from
- * honest, clearly labelled draft text otherwise; nothing is invented (no fake
- * prices, testimonials or statistics).
+ * relative. Nothing is invented (no fake prices, testimonials or statistics).
  *
- * Design system: navy masthead over porcelain content, serif display type over
- * a system sans, one cobalt accent. Motion is CSS-only because the preview
- * serves pages with `script-src 'none'`: a single hero cascade on load, a slow
- * aurora drift as texture, scroll-driven reveals on section headings, and
- * hover feedback on controls. Everything is disabled under
- * `prefers-reduced-motion`.
+ * Every site is built for a business archetype (see ./archetype.ts): a
+ * tutoring company and an electronics shop get different hero layouts, logo
+ * marks, cursors, page textures, motion tempos and copy. The brand brief
+ * contributes the positioning sentence and the audience; its internal notes
+ * (voice rules, visual direction, what to decide next) never reach a page.
+ *
+ * Motion is CSS-only because the preview serves pages with `script-src
+ * 'none'`, and everything is off under `prefers-reduced-motion`.
  */
 
+import { ARCHETYPES, detectArchetype, fill, type Archetype, type CursorStyle, type HeroLayout, type MarkStyle, type MotionTempo, type Texture } from "./archetype";
 import { deriveTheme, SHAPE_RADII, TYPE_STACKS, type SiteTheme } from "./theme";
 
 export type SiteFile = { path: string; kind: "html" | "css"; content: string };
@@ -34,14 +35,22 @@ export type SiteSpec = {
   goal: string;
   pages: SitemapEntry[];
   brief?: BriefSections;
-  /** Optional short tagline; derived from the brief when omitted. */
+  /** Optional short tagline; derived from the archetype when omitted. */
   tagline?: string;
   /** The user's answer to "Any colours or a look you have in mind?". */
   look?: string;
   /** The user's tone hint from the plan questions. */
   tone?: string;
+  /** The user's answer to "Who is the site for?". Falls back to the brief's audience. */
+  audience?: string;
+  /** What the business sells, if the user said. Helps pick the archetype. */
+  products?: string;
+  /** Town or area, if known. */
+  place?: string;
   /** Pre-derived theme; when omitted it is derived from look, brief, tone and goal. */
   theme?: SiteTheme;
+  /** Pre-chosen archetype; when omitted it is detected from the goal and answers. */
+  archetype?: Archetype;
 };
 
 export const CONTACT_FORM_NOTICE =
@@ -65,7 +74,7 @@ export function fileNameForPath(path: string): string {
 
 /**
  * Pull `## Heading` sections out of the brand brief Markdown. Returns nothing
- * when the brief has no sections, so templates fall back to neutral copy.
+ * when the brief has no sections, so templates fall back to archetype copy.
  */
 export function parseBrief(markdown: string): BriefSections {
   const out: BriefSections = {};
@@ -85,9 +94,13 @@ export function parseBrief(markdown: string): BriefSections {
 
 /** Best-effort brand name from a goal such as "Build a website for my tutoring company". */
 export function brandNameFromGoal(goal: string): string {
-  const m = /\bfor\s+(?:my|our|a|an|the)?\s*([a-z0-9][a-z0-9' &-]{1,60}?)(?:\s+(?:called|named)\s+"?([^".,]+)"?)?\s*(?:[.,!]|$)/i.exec(goal.trim());
-  const named = m?.[2]?.trim();
+  const g = goal.trim();
+  const named = /\b(?:called|named)\s+"?([^".,]+?)"?\s*(?:[.,!]|$)/i.exec(g)?.[1]?.trim();
   if (named) return titleCase(named);
+  // "Help Sri Ganesh Agency in Bharuch sell more": a capitalised name after a verb.
+  const proper = /^(?:[Hh]elp|[Gg]row|[Pp]romote|[Mm]arket|[Bb]uild (?:a )?(?:website|site) for)\s+((?:[A-Z][\w&'-]*)(?:\s+(?:[A-Z][\w&'-]*|&|and|of))*?)\s+(?:in|at|near|sell|get|find|reach|grow|to)\b/.exec(g)?.[1]?.trim();
+  if (proper && proper.split(/\s+/).length <= 5) return proper;
+  const m = /\bfor\s+(?:my|our|a|an|the)?\s*([a-z0-9][a-z0-9' &-]{1,60}?)\s*(?:[.,!]|$)/i.exec(g);
   const phrase = m?.[1]?.trim();
   if (phrase) return titleCase(phrase);
   return "Your Business";
@@ -108,24 +121,28 @@ function plainText(md: string): string {
     .trim();
 }
 
-function firstSentence(s: string | undefined): string | undefined {
-  if (!s) return undefined;
-  const plain = plainText(s);
-  const m = /^(.+?[.!?])(\s|$)/.exec(plain);
-  return (m?.[1] ?? plain).slice(0, 160);
-}
-
-function paragraphs(md: string | undefined, fallback: string[]): string[] {
-  if (!md) return fallback;
-  const paras = md
+function firstParagraph(md: string | undefined): string | undefined {
+  if (!md) return undefined;
+  const para = md
     .split(/\n\s*\n/)
     .map(plainText)
-    .filter(Boolean);
-  return paras.length ? paras.slice(0, 3) : fallback;
+    .find(Boolean);
+  return para?.slice(0, 240);
 }
 
-function lowerFirst(s: string): string {
-  return s.charAt(0).toLowerCase() + s.slice(1).replace(/[.!?]$/, ".");
+function sentenceCase(s: string): string {
+  const t = s.trim().replace(/[.!?]+$/, "");
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) + "." : "";
+}
+
+/** Brief text that merely echoes the goal or carries brief-only notes is not site copy. */
+function usablePositioning(p: string | undefined, goal: string): string | undefined {
+  if (!p) return undefined;
+  const lower = p.toLowerCase();
+  const g = goal.trim().replace(/[.!?]+$/, "").toLowerCase();
+  if (g && lower.includes(g)) return undefined;
+  if (/what to decide next|not been stated|see audience/.test(lower)) return undefined;
+  return p;
 }
 
 type PageKind = "home" | "about" | "services" | "pricing" | "contact" | "generic";
@@ -134,8 +151,8 @@ function classify(title: string, path: string): PageKind {
   const t = `${title} ${path}`.toLowerCase();
   if (path.trim() === "/" || /\bhome\b|\bindex\b/.test(t)) return "home";
   if (/about|story|team/.test(t)) return "about";
-  if (/service|offer|product|what we do/.test(t)) return "services";
-  if (/pric|plan|rate/.test(t)) return "pricing";
+  if (/service|offer|product|what we do|menu|collection/.test(t)) return "services";
+  if (/pric|plan|rate|fees?/.test(t)) return "pricing";
   if (/contact|enquir|inquir|book/.test(t)) return "contact";
   return "generic";
 }
@@ -160,7 +177,6 @@ function normalisePages(pages: SitemapEntry[]): NormPage[] {
   if (!out.some((p) => p.file === "index.html")) {
     out.unshift({ title: "Home", path: "/", file: "index.html", kind: "home" });
   }
-  // Home first, keep the rest in sitemap order.
   out.sort((a, b) => Number(b.file === "index.html") - Number(a.file === "index.html"));
   return out;
 }
@@ -170,13 +186,20 @@ function normalisePages(pages: SitemapEntry[]): NormPage[] {
 // ---------------------------------------------------------------------------
 type RenderCtx = {
   brand: string;
+  initial: string;
+  headline: string;
   tagline: string;
+  purpose: string;
+  positioning?: string;
+  audience?: string;
   goal: string;
-  brief: BriefSections;
   ctaHref: string;
   ctaLabel: string;
+  secondaryHref?: string;
+  secondaryLabel: string;
   pages: NormPage[];
   theme: SiteTheme;
+  a: Archetype;
 };
 
 const e = escapeHtml;
@@ -184,18 +207,42 @@ const e = escapeHtml;
 export function generateSite(spec: SiteSpec): SiteFile[] {
   const pages = normalisePages(spec.pages);
   const brand = spec.brandName.trim() || "Your Business";
-  const tagline = spec.tagline?.trim() || firstSentence(spec.brief?.positioning) || `A new home on the web for ${brand}.`;
-  const audienceLine = firstSentence(spec.brief?.audience);
-  const description = audienceLine ? `${tagline} Made for ${lowerFirst(audienceLine)}` : tagline;
+  const a = spec.archetype ?? detectArchetype({ goal: spec.goal, brandName: brand, products: spec.products, audience: spec.audience });
+  const theme = spec.theme ?? deriveTheme({ look: spec.look, visual: spec.brief?.visual, tone: spec.tone, goal: spec.goal, fallback: a.defaults });
+  const audience = spec.audience?.trim() || firstParagraph(spec.brief?.audience);
+  const audienceLine = audience && !/^not specified/i.test(audience) ? audience.replace(/[.!?]+$/, "") : undefined;
+  const positioning = usablePositioning(firstParagraph(spec.brief?.positioning), spec.goal);
+  const purpose = fill(a.purpose, { brand, place: spec.place ?? null });
+  const headline = a.headline;
+  const tagline = spec.tagline?.trim() || fill(a.tagline, { brand, audience: audienceLine ? `For ${lowerFirst(audienceLine)}.` : null });
   const contact = pages.find((p) => p.kind === "contact");
+  const about = pages.find((p) => p.kind === "about");
+  const services = pages.find((p) => p.kind === "services");
   const ctaHref = contact ? contact.file : (pages[0]?.file ?? "index.html");
-  const ctaLabel = contact ? "Get in touch" : "Learn more";
-  const theme = spec.theme ?? deriveTheme({ look: spec.look, visual: spec.brief?.visual, tone: spec.tone, goal: spec.goal });
-  const c: RenderCtx = { brand, tagline, goal: spec.goal, brief: spec.brief ?? {}, ctaHref, ctaLabel, pages, theme };
-  const generatedComment = "<!-- Generated by Decupo from the brand brief and your answers. Review before publishing. -->";
+  const ctaLabel = contact ? a.cta.primary : "Learn more";
+  const secondary = services ?? about;
+  const c: RenderCtx = {
+    brand,
+    initial: initialOf(brand),
+    headline,
+    tagline,
+    purpose,
+    positioning,
+    audience: audienceLine,
+    goal: spec.goal,
+    ctaHref,
+    ctaLabel,
+    secondaryHref: secondary?.file,
+    secondaryLabel: services ? a.cta.secondary : "Our story",
+    pages,
+    theme,
+    a,
+  };
+  const description = [positioning ?? purpose, audienceLine ? `For ${lowerFirst(audienceLine)}.` : ""].filter(Boolean).join(" ").slice(0, 300);
+  const generatedComment = `<!-- Generated by Decupo for ${a.label}. Review before publishing. -->`;
 
   const files: SiteFile[] = pages.map((p) => {
-    const pageTitle = p.kind === "home" ? `${brand} - ${tagline}` : `${p.title} - ${brand}`;
+    const pageTitle = p.kind === "home" ? `${brand} - ${headline.replace(/[.!?]+$/, "")}` : `${p.title} - ${brand}`;
     const html = [
       "<!doctype html>",
       '<html lang="en">',
@@ -210,16 +257,16 @@ export function generateSite(spec: SiteSpec): SiteFile[] {
       `<meta property="og:title" content="${e(pageTitle)}">`,
       `<meta property="og:description" content="${e(description)}">`,
       '<meta name="twitter:card" content="summary">',
-      '<meta name="generator" content="Decupo site-build">',
+      `<meta name="generator" content="Decupo site-build (${a.id})">`,
       '<link rel="stylesheet" href="styles.css">',
       "</head>",
-      `<body class="page-${p.kind}">`,
+      `<body class="page-${p.kind} arch-${a.id} layout-${a.hero}">`,
       generatedComment,
       '<a class="skip-link" href="#main">Skip to content</a>',
       '<div class="masthead">',
       '<div class="aurora" aria-hidden="true"></div>',
       '<header class="site-header">',
-      `<a class="brand" href="index.html" aria-label="${e(brand)} home">${logoMark()}<span>${e(brand)}</span></a>`,
+      `<a class="brand" href="index.html" aria-label="${e(brand)} home">${logoMark(a.mark, c.initial)}<span>${e(brand)}</span></a>`,
       `<nav class="site-nav" aria-label="Main"><ul>${navItems(pages, p)}</ul></nav>`,
       "</header>",
       renderMasthead(p, c),
@@ -235,8 +282,17 @@ export function generateSite(spec: SiteSpec): SiteFile[] {
     return { path: p.file, kind: "html", content: html };
   });
 
-  files.push({ path: "styles.css", kind: "css", content: stylesheet(theme) });
+  files.push({ path: "styles.css", kind: "css", content: stylesheet(theme, a) });
   return files;
+}
+
+function initialOf(brand: string): string {
+  const m = /[A-Za-z0-9]/.exec(brand);
+  return m ? m[0]!.toUpperCase() : "";
+}
+
+function lowerFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
 function navItems(pages: NormPage[], current: NormPage): string {
@@ -245,143 +301,166 @@ function navItems(pages: NormPage[], current: NormPage): string {
     .join("");
 }
 
-
-/** The navy band at the top of every page: the hero on home, a page title elsewhere. */
-function renderMasthead(page: NormPage, c: RenderCtx): string {
+function buttons(c: RenderCtx): string {
   const primary = `<a class="button button-primary" href="${c.ctaHref}"><span>${e(c.ctaLabel)}</span></a>`;
-  if (page.kind === "home") {
-    const about = c.pages.find((p) => p.kind === "about");
-    const secondary = about ? `<a class="button button-ghost" href="${about.file}">Our story</a>` : "";
-    return [
-      '<section class="hero">',
-      '<div class="hero-copy">',
-      `<h1>${e(c.brand)}</h1>`,
-      `<p class="lead">${e(c.tagline)}</p>`,
-      `<div class="hero-actions">${primary}${secondary}</div>`,
-      "</div>",
-      '<div class="hero-art" aria-hidden="true">',
-      heroArt(c.theme),
-      "</div>",
-      "</section>",
-      renderMarquee(c),
-    ].join("\n");
-  }
+  const secondary = c.secondaryHref ? `<a class="button button-ghost" href="${c.secondaryHref}">${e(c.secondaryLabel)}</a>` : "";
+  return `<div class="hero-actions">${primary}${secondary}</div>`;
+}
+
+/** The band at the top of every page: the hero on home (one of four layouts), a page title elsewhere. */
+function renderMasthead(page: NormPage, c: RenderCtx): string {
+  if (page.kind === "home") return [renderHero(c), renderStrip(c)].join("\n");
   const intro: Record<Exclude<PageKind, "home">, string> = {
-    about: `The people, the purpose and the way ${c.brand} works.`,
-    services: `What ${c.brand} does, and what you get at the end of it.`,
-    pricing: "Clear tiers, confirmed in writing before any work starts.",
+    about: c.positioning ?? c.purpose,
+    services: `What ${c.brand} offers, and what you get at the end of it.`,
+    pricing: c.a.pricingIntro.split(". ")[0] + ".",
     contact: "Tell us what you need. We reply to every message.",
-    generic: `A page from the ${c.brand} sitemap.`,
+    generic: `A page from the ${c.brand} site.`,
   };
   const heading = page.kind === "about" ? `About ${c.brand}` : page.kind === "contact" ? `Contact ${c.brand}` : page.title;
   return [
     '<section class="page-hero">',
+    `<p class="eyebrow">${e(c.brand)}</p>`,
     `<h1>${e(heading)}</h1>`,
     `<p class="lead">${e(intro[page.kind])}</p>`,
     "</section>",
   ].join("\n");
 }
 
-/** Slow, pausable strip under the hero built from the sitemap, so it is always true to the site. */
-function renderMarquee(c: RenderCtx): string {
-  const sections = c.pages.filter((p) => p.kind !== "home");
-  if (sections.length < 2) return "";
-  const live = sections.map((p) => `<li><a href="${p.file}">${e(p.title)}</a></li>`).join("");
-  // The second track only fills the loop; it is hidden from assistive tech and holds no links.
-  const copy = sections.map((p) => `<li>${e(p.title)}</li>`).join("");
-  return `<div class="marquee" aria-label="Sections of this site"><ul class="marquee-track">${live}</ul><ul class="marquee-track" aria-hidden="true">${copy}</ul></div>`;
+function renderHero(c: RenderCtx): string {
+  const { a } = c;
+  switch (a.hero) {
+    case "editorial":
+      return [
+        '<section class="hero hero-editorial">',
+        `<p class="eyebrow">${e(c.brand)}<span class="eyebrow-sep" aria-hidden="true"></span>${e(a.label.replace(/^an? /, ""))}</p>`,
+        `<h1>${e(c.headline)}</h1>`,
+        '<div class="hero-row">',
+        `<p class="lead">${e(c.tagline)}</p>`,
+        buttons(c),
+        "</div>",
+        `<div class="hero-rule" aria-hidden="true">${heroLine(c.theme)}</div>`,
+        "</section>",
+      ].join("\n");
+    case "poster":
+      return [
+        '<section class="hero hero-poster">',
+        `<div class="hero-glow" aria-hidden="true">${heroGlow(c.theme)}</div>`,
+        `<p class="eyebrow">${e(c.brand)}</p>`,
+        `<h1>${e(c.headline)}</h1>`,
+        `<p class="lead">${e(c.tagline)}</p>`,
+        buttons(c),
+        "</section>",
+      ].join("\n");
+    case "shelf":
+      return [
+        '<section class="hero hero-shelf">',
+        '<div class="hero-copy">',
+        `<p class="eyebrow">${e(c.brand)}</p>`,
+        `<h1>${e(c.headline)}</h1>`,
+        `<p class="lead">${e(c.tagline)}</p>`,
+        buttons(c),
+        "</div>",
+        '<div class="hero-art shelf" aria-hidden="true">',
+        heroGlow(c.theme),
+        ...a.services.slice(0, 3).map((s, i) => `<div class="shelf-card shelf-card-${i + 1}"><span class="shelf-icon">${SHELF_ICONS[i]}</span><b>${e(s.title)}</b><span>${e(firstClause(s.body))}</span></div>`),
+        "</div>",
+        "</section>",
+      ].join("\n");
+    case "split":
+    default:
+      return [
+        '<section class="hero hero-split">',
+        '<div class="hero-copy">',
+        `<p class="eyebrow">${e(c.brand)}</p>`,
+        `<h1>${e(c.headline)}</h1>`,
+        `<p class="lead">${e(c.tagline)}</p>`,
+        buttons(c),
+        "</div>",
+        '<div class="hero-art" aria-hidden="true">',
+        heroArt(c.theme, a.mark, c.initial),
+        "</div>",
+        "</section>",
+      ].join("\n");
+  }
+}
+
+function firstClause(s: string): string {
+  const m = /^(.+?)[,.;](\s|$)/.exec(s);
+  return (m?.[1] ?? s).slice(0, 60);
+}
+
+/** Slow, pausable strip under the hero built from the archetype's own words, so it is true to the business. */
+function renderStrip(c: RenderCtx): string {
+  const words = c.a.strip;
+  if (words.length < 3) return "";
+  const live = words.map((w) => `<li>${e(w)}</li>`).join("");
+  return `<div class="marquee" aria-label="What ${e(c.brand)} does"><ul class="marquee-track">${live}</ul><ul class="marquee-track" aria-hidden="true">${live}</ul></div>`;
 }
 
 function renderBody(page: NormPage, c: RenderCtx): string {
+  const { a } = c;
   const cta = `<a class="button button-primary" href="${c.ctaHref}"><span>${e(c.ctaLabel)}</span></a>`;
   switch (page.kind) {
     case "home": {
-      const intro = paragraphs(c.brief.positioning, [`${c.brand} is getting a new website. This draft was generated for the goal: "${c.goal}".`]);
-      const audience = paragraphs(c.brief.audience, ["Tell us who you serve and this section will speak to them directly."]);
-      const voice = paragraphs(c.brief.voice, ["Clear, warm and direct, in every message and on every page."]);
+      const who = c.positioning ?? c.purpose;
+      const tiles = [
+        bentoTile("wide", "Who we are", who, iconSpark()),
+        c.audience ? bentoTile("tall", "Who we serve", sentenceCase(c.audience), iconPeople()) : bentoTile("tall", a.reasons[0]!.title, a.reasons[0]!.body, iconPeople()),
+        ...(c.audience ? a.reasons.slice(0, 2) : a.reasons.slice(1, 3)).map((r, i) => bentoTile("", r.title, r.body, i === 0 ? iconShield() : iconQuote())),
+      ];
       return [
-        section("why", `Why ${c.brand}`, [
-          '<div class="bento">',
-          bentoTile("wide", "Who we are", intro[0]!, iconSpark()),
-          bentoTile("tall", "Who we serve", audience[0]!, iconPeople()),
-          bentoTile("", "How we talk", voice[0]!, iconQuote()),
-          bentoTile("", "How to reach us", "Use the contact page to start a conversation. We reply to every message.", iconMail()),
+        section("why", `Why ${c.brand}`, ['<div class="bento">', ...tiles, "</div>"]),
+        section("offer", "What we do", [
+          '<div class="cards cards-3">',
+          ...a.services.slice(0, 3).map((s) => card(s.title, s.body)),
           "</div>",
+          c.pages.find((p) => p.kind === "services") ? `<p class="section-more"><a href="${c.pages.find((p) => p.kind === "services")!.file}">See everything we offer</a></p>` : "",
         ]),
-        section("process", "How it works", [
-          '<ol class="steps">',
-          step(1, "Say hello", "Send a message with what you need and when you need it."),
-          step(2, "Agree the plan", "We confirm scope, timing and price in writing before anything starts."),
-          step(3, "Get it done", "The work lands as agreed, with a clear hand-over at the end."),
-          "</ol>",
-        ]),
-        section("faq", "Questions people ask", [
-          faq("How do we start?", `Use the contact page. ${c.brand} replies to every message with a suggested next step.`),
-          faq("What does it cost?", "Prices are not published yet. Every quote is confirmed in writing before work starts."),
-          faq("Where do you work?", "Add your locations or service area here; this draft does not assume one."),
-        ]),
-        ctaBand(c.brand, cta),
+        section("process", "How it works", ['<ol class="steps">', ...a.steps.map((s, i) => step(i + 1, s.title, s.body)), "</ol>"]),
+        section("faq", "Questions people ask", a.faq.map((f) => faq(f.title, f.body))),
+        ctaBand(c, cta),
       ].join("\n");
     }
     case "about": {
-      const story = paragraphs(c.brief.positioning, [
-        `${c.brand} was set up with a clear goal: ${lowerFirst(c.goal)}`,
-        "This page tells the story behind the business, the people involved and what they stand for. Replace this draft with your own words.",
-      ]);
-      const voice = paragraphs(c.brief.voice, ["Clear, warm and direct."]);
-      const visual = paragraphs(c.brief.visual, ["Calm, uncluttered and consistent, so the work stays the focus."]);
+      const story = [c.positioning ?? c.purpose, c.audience ? `${c.brand} is for ${lowerFirst(c.audience)}, and every page and message speaks to them first.` : a.tagline.replace(/\s*\{audience\}/, "")];
       return [
-        section("story", "The story", [
-          '<div class="prose">',
-          ...story.map((p) => `<p>${e(p)}</p>`),
-          "</div>",
-        ]),
-        section("values", "What we stand for", [
-          '<div class="cards">',
-          card("How we work", voice[0]!),
-          card("How things look", visual[0]!),
-          card("What you can expect", "Straight answers, agreed timelines and no surprises on the invoice."),
-          "</div>",
-        ]),
-        ctaBand(c.brand, cta),
+        section("story", "The story", ['<div class="prose">', ...story.map((p) => `<p>${e(p)}</p>`), "</div>"]),
+        section("values", "What we stand for", ['<div class="cards">', ...a.reasons.map((r) => card(r.title, r.body)), "</div>"]),
+        ctaBand(c, cta),
       ].join("\n");
     }
     case "services": {
+      const icons = [iconSpark(), iconLayers(), iconShield(), iconMail()];
       return [
-        section("offer", "The services", [
+        section("offer", `What ${c.brand} offers`, [
           '<div class="bento">',
-          bentoTile("wide", "Core service", "Describe the main thing you do and the outcome a customer gets.", iconSpark()),
-          bentoTile("tall", "Second service", "A complementary offer, or the next step customers usually take.", iconLayers()),
-          bentoTile("", "Support", "How you look after customers after the work is done.", iconShield()),
-          bentoTile("", "Something bespoke", "If it is not listed, ask. Most good work starts as a conversation.", iconMail()),
+          ...a.services.map((s, i) => bentoTile(i === 0 ? "wide" : i === 1 ? "tall" : "", s.title, s.body, icons[i]!)),
           "</div>",
         ]),
-        ctaBand(c.brand, cta),
+        ctaBand(c, cta),
       ].join("\n");
     }
     case "pricing": {
       return [
         section("tiers", "Choose a starting point", [
-          '<p class="section-intro">Figures are not filled in yet, so none are shown. Each tier is a conversation starter, not a contract.</p>',
+          `<p class="section-intro">${e(a.pricingIntro)}</p>`,
           '<div class="tiers">',
-          tier("Starter", "For getting going.", ["One clear deliverable", "Agreed timeline", "Email support"], false),
-          tier("Standard", "For most customers.", ["Everything in Starter", "Regular check-ins", "Two rounds of changes"], true),
-          tier("Premium", "For bigger needs.", ["Everything in Standard", "Priority scheduling", "Dedicated point of contact"], false),
+          ...a.tiers.map((t, i) => tier(t.name, t.body, t.points, i === 1)),
           "</div>",
         ]),
-        ctaBand(c.brand, cta, "Ask for a quote and we will confirm prices in writing before any work starts."),
+        ctaBand(c, cta, "Ask for a quote and we will confirm prices in writing before any work starts."),
       ].join("\n");
     }
     case "contact": {
+      const icons = [iconMail(), iconPin(), iconClock()];
       return [
         '<section class="section contact-grid" aria-labelledby="contact-heading">',
         '<div class="contact-aside">',
         '<h2 id="contact-heading">Send a message</h2>',
         '<p class="section-intro">A few lines is enough. Say what you need and roughly when, and we will come back with a next step.</p>',
         '<ul class="contact-points">',
-        `<li>${iconMail()}<span>Email address to be added</span></li>`,
-        `<li>${iconPin()}<span>Location or service area to be added</span></li>`,
-        `<li>${iconClock()}<span>Opening hours to be added</span></li>`,
+        ...a.contactPoints.map((p, i) => `<li>${icons[i] ?? iconSpark()}<span>${e(p)}</span></li>`),
         "</ul>",
         "</div>",
         '<form class="contact-form" method="post" aria-describedby="form-status">',
@@ -396,12 +475,8 @@ function renderBody(page: NormPage, c: RenderCtx): string {
     }
     default:
       return [
-        section("content", page.title, [
-          '<div class="prose">',
-          "<p>This page was listed in the sitemap but has no outline yet. Add the sections you want here.</p>",
-          "</div>",
-        ]),
-        ctaBand(c.brand, cta),
+        section("content", page.title, ['<div class="prose">', "<p>This page was listed in the sitemap but has no outline yet. Add the sections you want here.</p>", "</div>"]),
+        ctaBand(c, cta),
       ].join("\n");
   }
 }
@@ -411,7 +486,7 @@ function renderFooter(c: RenderCtx): string {
   return [
     '<footer class="site-footer">',
     '<div class="footer-inner">',
-    `<a class="brand" href="index.html">${logoMark()}<span>${e(c.brand)}</span></a>`,
+    `<a class="brand" href="index.html">${logoMark(c.a.mark, c.initial)}<span>${e(c.brand)}</span></a>`,
     `<nav aria-label="Footer"><ul>${links}</ul></nav>`,
     `<p class="legal">&copy; <span class="year">${new Date().getUTCFullYear()}</span> ${e(c.brand)}. All rights reserved.</p>`,
     "</div>",
@@ -423,7 +498,7 @@ function renderFooter(c: RenderCtx): string {
 // Components
 // ---------------------------------------------------------------------------
 function section(id: string, heading: string, body: string[]): string {
-  return [`<section class="section" aria-labelledby="${id}-heading">`, `<h2 id="${id}-heading" class="reveal">${e(heading)}</h2>`, ...body, "</section>"].join("\n");
+  return [`<section class="section" aria-labelledby="${id}-heading">`, `<h2 id="${id}-heading" class="reveal">${e(heading)}</h2>`, ...body.filter(Boolean), "</section>"].join("\n");
 }
 
 function bentoTile(size: string, title: string, body: string, icon: string): string {
@@ -455,12 +530,12 @@ function tier(name: string, body: string, points: string[], featured: boolean): 
   ].join("");
 }
 
-function ctaBand(brand: string, cta: string, note?: string): string {
+function ctaBand(c: RenderCtx, cta: string, note?: string): string {
   return [
     '<section class="cta-band" aria-labelledby="cta-heading">',
     '<div class="cta-glow" aria-hidden="true"></div>',
     `<h2 id="cta-heading">Ready when you are.</h2>`,
-    `<p>${e(note ?? `Start a conversation with ${brand}. No forms to fight, no commitment.`)}</p>`,
+    `<p>${e(note ?? `Start a conversation with ${c.brand}. No forms to fight, no commitment.`)}</p>`,
     cta,
     "</section>",
   ].join("\n");
@@ -483,39 +558,165 @@ const iconPin = () => svg('<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 
 const iconClock = () => svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>');
 const iconCheck = () => svg('<path d="m5 12 4 4L19 7"/>', 16);
 const iconChevron = () => svg('<path d="m6 9 6 6 6-6"/>', 18);
+const SHELF_ICONS = [svg('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 10h14M9 7h.01M9 14h.01"/>', 22), svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>', 22), svg('<path d="M3 9h18l-1.5 10h-15L3 9Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/>', 22)];
 
-function logoMark(): string {
-  return '<svg class="logo" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" focusable="false"><rect x="2" y="2" width="26" height="26" rx="8" fill="currentColor" opacity="0.18"/><path d="M9 20V10h4.5a5 5 0 0 1 0 10H9Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="21" cy="19" r="1.8" fill="currentColor"/></svg>';
+/** A logo mark in the archetype's style with the brand's initial. */
+function logoMark(style: MarkStyle, initial: string): string {
+  const letter = initial ? `<text x="15" y="19.6" text-anchor="middle" font-family="inherit" font-size="13" font-weight="700" fill="currentColor">${e(initial)}</text>` : "";
+  const shapes: Record<MarkStyle, string> = {
+    ruled: `<rect x="2" y="2" width="26" height="26" rx="5" fill="currentColor" opacity="0.16"/><path d="M6 10h18M6 15h18M6 20h18" stroke="currentColor" stroke-width="1" opacity="0.45"/><rect x="2.5" y="2.5" width="25" height="25" rx="4.5" stroke="currentColor" stroke-width="1.5"/>`,
+    chip: `<rect x="5" y="5" width="20" height="20" rx="4" fill="currentColor" opacity="0.16"/><rect x="5.5" y="5.5" width="19" height="19" rx="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v3M15 2v3M20 2v3M10 25v3M15 25v3M20 25v3M2 10h3M2 15h3M2 20h3M25 10h3M25 15h3M25 20h3" stroke="currentColor" stroke-width="1.5"/>`,
+    sack: `<path d="M8 11c-3 4-4 8-4 11a6 6 0 0 0 6 6h10a6 6 0 0 0 6-6c0-3-1-7-4-11Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/><path d="M10 11c0-3 1-5 5-5s5 2 5 5" stroke="currentColor" stroke-width="1.5"/><path d="M8 11h14" stroke="currentColor" stroke-width="1.5"/>`,
+    leaf: `<path d="M26 4C14 4 5 11 5 23c0 1 0 2 .3 3C17 27 26 19 26 4Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/><path d="M6 26C10 19 16 13 23 8" stroke="currentColor" stroke-width="1.5"/>`,
+    wheel: `<circle cx="15" cy="15" r="12" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="7.5" stroke="currentColor" stroke-width="1.2" opacity="0.7"/><path d="M15 3v24M3 15h24" stroke="currentColor" stroke-width="1" opacity="0.5"/>`,
+    flame: `<path d="M15 3c2 5 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 3-8 1 2 2 3 3 3 0-4 1-7 2-10Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/>`,
+    petal: `<path d="M15 3c4 3 4 9 0 12-4-3-4-9 0-12ZM15 27c-4-3-4-9 0-12 4 3 4 9 0 12ZM3 15c3-4 9-4 12 0-3 4-9 4-12 0ZM27 15c-3 4-9 4-12 0 3-4 9-4 12 0Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.3"/>`,
+    cross: `<path d="M11 3h8v8h8v8h-8v8h-8v-8H3v-8h8V3Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+    bolt: `<path d="M15 2 26 8.5v13L15 28 4 21.5v-13L15 2Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M16 8 10 17h5l-1 6 6-9h-5l1-6Z" fill="currentColor"/>`,
+    lens: `<circle cx="15" cy="15" r="12" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="6" stroke="currentColor" stroke-width="1.5"/><circle cx="20" cy="10" r="1.6" fill="currentColor"/>`,
+    shield: `<path d="M15 3 26 7v8c0 6-4.5 10.5-11 12C8.5 25.5 4 21 4 15V7l11-4Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+    grid: `<rect x="3" y="3" width="24" height="24" rx="5" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/><path d="M11 3v24M19 3v24M3 11h24M3 19h24" stroke="currentColor" stroke-width="1" opacity="0.5"/>`,
+    hex: `<path d="M15 2.5 26 9v12l-11 6.5L4 21V9l11-6.5Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+    ring: `<circle cx="15" cy="15" r="12" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.5"/>`,
+  };
+  const fill = style === "bolt" ? "" : letter;
+  return `<svg class="logo" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" focusable="false">${shapes[style]}${fill}</svg>`;
 }
 
-function heroArt(theme: SiteTheme): string {
-  // Abstract composition: concentric arcs and a drifting orb. Decorative, aria-hidden.
+function gradientDefs(theme: SiteTheme): string {
   const { highlight, accent } = theme.colors;
+  return `<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${highlight}"/><stop offset="1" stop-color="${accent}"/></linearGradient></defs>`;
+}
+
+/** Split layout: a large version of the mark orbited by the archetype's own geometry. */
+function heroArt(theme: SiteTheme, mark: MarkStyle, initial: string): string {
+  const letter = initial ? `<text x="240" y="268" text-anchor="middle" font-family="inherit" font-size="96" font-weight="700" fill="url(#g1)">${e(initial)}</text>` : "";
+  const lines: Record<MarkStyle, string> = {
+    ruled: '<path d="M90 150h300M90 200h300M90 250h300M90 300h300M90 350h300" stroke="rgba(255,255,255,0.16)" stroke-width="1.5"/>',
+    chip: '<rect x="120" y="120" width="240" height="240" rx="28" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/><path d="M160 80v40M240 80v40M320 80v40M160 360v40M240 360v40M320 360v40M80 160h40M80 240h40M80 320h40M360 160h40M360 240h40M360 320h40" stroke="rgba(255,255,255,0.22)" stroke-width="2"/>',
+    sack: '<path d="M130 190c-40 60-50 110-50 140a70 70 0 0 0 70 70h180a70 70 0 0 0 70-70c0-30-10-80-50-140Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    leaf: '<path d="M400 70C230 70 90 170 90 340c0 14 1 27 3 40C260 380 400 260 400 70Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    wheel: '<circle cx="240" cy="240" r="200" stroke="rgba(255,255,255,0.16)" stroke-width="1.25"/><circle cx="240" cy="240" r="140" stroke="rgba(255,255,255,0.16)" stroke-width="1.25"/>',
+    flame: '<path d="M240 60c30 80 130 120 130 230a130 130 0 0 1-260 0c0-60 30-90 50-120 10 30 30 50 50 50 0-60 10-110 30-160Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    petal: '<circle cx="240" cy="240" r="190" stroke="rgba(255,255,255,0.14)"/><circle cx="240" cy="240" r="120" stroke="rgba(255,255,255,0.18)"/>',
+    cross: '<path d="M180 60h120v120h120v120H300v120H180V300H60V180h120V60Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    bolt: '<path d="M240 40 420 140v200L240 440 60 340V140L240 40Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    lens: '<circle cx="240" cy="240" r="200" stroke="rgba(255,255,255,0.16)"/><circle cx="240" cy="240" r="110" stroke="rgba(255,255,255,0.2)"/>',
+    shield: '<path d="M240 40 420 100v150c0 100-80 170-180 200C140 420 60 350 60 250V100l180-60Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    grid: '<path d="M80 80h320v320H80zM187 80v320M293 80v320M80 187h320M80 293h320" stroke="rgba(255,255,255,0.16)" stroke-width="1.25"/>',
+    hex: '<path d="M240 50 410 145v190L240 430 70 335V145L240 50Z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>',
+    ring: '<circle cx="240" cy="240" r="210"/><circle cx="240" cy="240" r="165"/><circle cx="240" cy="240" r="120"/><circle cx="240" cy="240" r="75"/>',
+  };
   return [
     '<svg class="hero-svg" viewBox="0 0 480 480" fill="none" aria-hidden="true" focusable="false">',
-    `<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${highlight}"/><stop offset="1" stop-color="${accent}"/></linearGradient></defs>`,
-    '<g class="hero-rings" stroke="rgba(255,255,255,0.18)" stroke-width="1.25">',
-    '<circle cx="240" cy="240" r="210"/><circle cx="240" cy="240" r="165"/><circle cx="240" cy="240" r="120"/><circle cx="240" cy="240" r="75"/>',
-    "</g>",
+    gradientDefs(theme),
+    `<g class="hero-rings" stroke="rgba(255,255,255,0.18)" stroke-width="1.25">${lines[mark]}</g>`,
     '<path class="hero-arc" d="M60 240a180 180 0 0 1 180-180" stroke="url(#g1)" stroke-width="6" stroke-linecap="round"/>',
-    `<circle class="hero-orb" cx="240" cy="60" r="14" fill="${highlight}"/>`,
-    '<circle cx="240" cy="240" r="30" fill="url(#g1)"/>',
+    `<circle class="hero-orb" cx="240" cy="60" r="14" fill="${theme.colors.highlight}"/>`,
+    letter,
     "</svg>",
   ].join("");
+}
+
+/** Editorial layout: a drawn rule with a gradient tip. */
+function heroLine(theme: SiteTheme): string {
+  return `<svg viewBox="0 0 800 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">${gradientDefs(theme)}<path class="hero-arc" d="M0 12H800" stroke="url(#g1)" stroke-width="3" stroke-linecap="round"/></svg>`;
+}
+
+/** Poster and shelf layouts: a soft glow behind the type. */
+function heroGlow(theme: SiteTheme): string {
+  return `<svg class="hero-glow-svg" viewBox="0 0 400 400" aria-hidden="true" focusable="false">${gradientDefs(theme)}<circle cx="200" cy="200" r="160" fill="url(#g1)" opacity="0.35"/><circle class="hero-orb" cx="200" cy="40" r="10" fill="${theme.colors.highlight}"/></svg>`;
+}
+
+// ---------------------------------------------------------------------------
+// Cursor, texture and tempo: small things that make a site feel made for the business
+// ---------------------------------------------------------------------------
+function cursorCss(style: CursorStyle, accent: string): string {
+  if (style === "arrow") return "";
+  const enc = (s: string) => encodeURIComponent(s).replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
+  const shapes: Record<Exclude<CursorStyle, "arrow">, { idle: string; hot: string; x: number; y: number }> = {
+    chalk: {
+      idle: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><path d='M4 24 20 8l4 4L8 28z' fill='${accent}' stroke='white' stroke-width='1.5'/><path d='M20 8l4-4 4 4-4 4z' fill='white' stroke='${accent}' stroke-width='1.5'/></svg>`,
+      hot: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='10' fill='none' stroke='${accent}' stroke-width='2.5'/><circle cx='14' cy='14' r='3' fill='${accent}'/></svg>`,
+      x: 4,
+      y: 24,
+    },
+    ring: {
+      idle: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='10' fill='none' stroke='${accent}' stroke-width='2'/><circle cx='14' cy='14' r='2.5' fill='${accent}'/></svg>`,
+      hot: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='12' fill='${accent}' fill-opacity='0.25' stroke='${accent}' stroke-width='2'/><circle cx='14' cy='14' r='3' fill='${accent}'/></svg>`,
+      x: 14,
+      y: 14,
+    },
+    dot: {
+      idle: `<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='6' fill='${accent}' stroke='white' stroke-width='2'/></svg>`,
+      hot: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='11' fill='${accent}' fill-opacity='0.3'/><circle cx='14' cy='14' r='5' fill='${accent}' stroke='white' stroke-width='2'/></svg>`,
+      x: 10,
+      y: 10,
+    },
+    plus: {
+      idle: `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2v20M2 12h20' stroke='${accent}' stroke-width='2'/><path d='M12 4v16M4 12h16' stroke='white' stroke-width='0.75'/></svg>`,
+      hot: `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><rect x='3' y='3' width='18' height='18' fill='none' stroke='${accent}' stroke-width='2'/><path d='M12 7v10M7 12h10' stroke='${accent}' stroke-width='2'/></svg>`,
+      x: 12,
+      y: 12,
+    },
+  };
+  const s = shapes[style];
+  const hotX = style === "chalk" ? 14 : s.x;
+  const hotY = style === "chalk" ? 14 : s.y;
+  return `
+/* Cursor: ${style}. Only on devices with a fine pointer; touch screens never see it. */
+@media (pointer: fine) {
+  body { cursor: url("data:image/svg+xml,${enc(s.idle)}") ${s.x} ${s.y}, auto; }
+  a, button, summary, label, input, textarea { cursor: url("data:image/svg+xml,${enc(s.hot)}") ${hotX} ${hotY}, pointer; }
+  input, textarea { cursor: text; }
+  .button[disabled] { cursor: not-allowed; }
+}`;
+}
+
+function textureCss(texture: Texture): string {
+  const patterns: Record<Texture, string> = {
+    ruled: "repeating-linear-gradient(180deg, transparent 0, transparent 31px, color-mix(in srgb, var(--accent) 9%, transparent) 31px, color-mix(in srgb, var(--accent) 9%, transparent) 32px)",
+    grid: "linear-gradient(color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px)",
+    weave:
+      "repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent) 5%, transparent) 0, color-mix(in srgb, var(--accent) 5%, transparent) 2px, transparent 2px, transparent 12px), repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 5%, transparent) 0, color-mix(in srgb, var(--accent) 5%, transparent) 2px, transparent 2px, transparent 12px)",
+    dots: "radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.5px)",
+    paper: "radial-gradient(60% 40% at 10% 0%, color-mix(in srgb, var(--highlight) 22%, transparent), transparent 70%), radial-gradient(50% 40% at 100% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%)",
+    none: "none",
+  };
+  const sizes: Record<Texture, string> = { ruled: "auto", grid: "28px 28px", weave: "auto", dots: "22px 22px", paper: "auto", none: "auto" };
+  if (texture === "none") return "";
+  return `
+/* Texture: ${texture} */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: ${patterns[texture]}; background-size: ${sizes[texture]}; opacity: 0.9; }`;
+}
+
+function tempo(m: MotionTempo): { t: string; fast: string; slow: string; lift: string; aurora: string; scale: string } {
+  switch (m) {
+    case "snappy":
+      return { t: "220ms", fast: "120ms", slow: "520ms", lift: "-4px", aurora: "14s", scale: "1.02" };
+    case "drift":
+      return { t: "520ms", fast: "240ms", slow: "1100ms", lift: "-2px", aurora: "34s", scale: "1" };
+    case "steady":
+      return { t: "300ms", fast: "160ms", slow: "600ms", lift: "-1px", aurora: "0s", scale: "1" };
+    case "calm":
+    default:
+      return { t: "400ms", fast: "200ms", slow: "800ms", lift: "-3px", aurora: "22s", scale: "1" };
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Stylesheet
 // ---------------------------------------------------------------------------
-function stylesheet(theme: SiteTheme): string {
+function stylesheet(theme: SiteTheme, a: Archetype): string {
   const k = theme.colors;
   const r = SHAPE_RADII[theme.shape];
+  const tp = tempo(a.motion);
   const displayWeight = theme.type === "serif" ? 500 : theme.type === "mono" ? 600 : 700;
   const displayTracking = theme.type === "sans" ? "-0.03em" : theme.type === "mono" ? "-0.01em" : "-0.015em";
-  return `/* Generated by Decupo site-build. Edit freely. */
+  const heroCss = heroLayoutCss(a.hero);
+  return `/* Generated by Decupo site-build for ${a.label}. Edit freely. */
 /* ${theme.description} */
-/* Motion language: Premium. Base unit 400ms, ease cubic-bezier(.4,0,.2,1), no overshoot.
-   One hero cascade on load, slow aurora as texture, scroll reveals on headings only. */
+/* Hero: ${a.hero}. Mark: ${a.mark}. Cursor: ${a.cursor}. Texture: ${a.texture}. Motion: ${a.motion} (base ${tp.t}, ease cubic-bezier(.4,0,.2,1)). */
 :root {
   --brand: ${k.brand};
   --brand-deep: ${k.brandDeep};
@@ -536,9 +737,11 @@ function stylesheet(theme: SiteTheme): string {
   --max: 1120px;
   --gutter: clamp(20px, 4vw, 40px);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --t: 400ms;
-  --t-fast: 200ms;
-  --t-slow: 800ms;
+  --t: ${tp.t};
+  --t-fast: ${tp.fast};
+  --t-slow: ${tp.slow};
+  --lift: ${tp.lift};
+  --hover-scale: ${tp.scale};
   --display-weight: ${displayWeight};
   --display-tracking: ${displayTracking};
   --font-display: ${TYPE_STACKS[theme.type]};
@@ -556,20 +759,23 @@ body {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
+  position: relative;
 }
 h1, h2, h3 { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); margin: 0; text-wrap: balance; }
-h1 { font-size: clamp(2.6rem, 7vw, 5.25rem); line-height: 0.98; }
+h1 { font-size: clamp(2.4rem, 6vw, 4.6rem); line-height: 1.02; }
 h2 { font-size: clamp(1.9rem, 3.6vw, 2.75rem); line-height: 1.1; }
 h3 { font-size: 1.3rem; line-height: 1.25; }
 p { margin: 0; }
 a { color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+${textureCss(a.texture)}
+${cursorCss(a.cursor, k.accent)}
 
 /* Skip link */
 .skip-link { position: absolute; left: -999px; top: 12px; background: var(--ink); color: #fff; padding: 10px 14px; border-radius: var(--radius-s); z-index: 20; }
 .skip-link:focus { left: 12px; }
 
-/* Masthead: navy band shared by every page */
+/* Masthead: brand band shared by every page */
 .masthead { position: relative; background: var(--brand); color: var(--on-brand); overflow: hidden; isolation: isolate; }
 .aurora {
   position: absolute; inset: -30% -10%; z-index: -1; pointer-events: none;
@@ -578,14 +784,14 @@ a { color: inherit; }
     radial-gradient(35% 45% at 80% 20%, color-mix(in srgb, var(--highlight) 28%, transparent), transparent 70%),
     radial-gradient(45% 55% at 70% 85%, color-mix(in srgb, var(--accent-deep) 50%, transparent), transparent 70%);
   filter: blur(40px);
-  animation: aurora 22s var(--ease) infinite alternate;
+  ${tp.aurora === "0s" ? "" : `animation: aurora ${tp.aurora} var(--ease) infinite alternate;`}
 }
 .site-header {
   width: 100%; max-width: var(--max); margin: 0 auto; padding: 22px var(--gutter);
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
 }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 1.25rem; text-decoration: none; }
-.logo { color: var(--highlight); }
+.logo { color: var(--highlight); flex: none; }
 .site-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 6px; }
 .site-nav a {
   position: relative; display: inline-block; padding: 8px 12px; border-radius: var(--radius-pill);
@@ -596,22 +802,23 @@ a { color: inherit; }
 .site-nav a[aria-current="page"] { color: var(--brand); background: var(--highlight); }
 
 /* Hero (home) */
-.hero {
-  width: 100%; max-width: var(--max); margin: 0 auto; padding: clamp(40px, 7vw, 96px) var(--gutter) clamp(48px, 7vw, 88px);
-  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(24px, 5vw, 64px); align-items: center;
-}
-.hero-copy > * { animation: rise var(--t-slow) var(--ease) both; }
-.hero-copy > :nth-child(1) { animation-delay: 60ms; }
-.hero-copy > :nth-child(2) { animation-delay: 140ms; }
-.hero-copy > :nth-child(3) { animation-delay: 220ms; }
-.hero-copy > :nth-child(4) { animation-delay: 300ms; }
-.hero .lead, .page-hero .lead { margin-top: 20px; font-size: clamp(1.15rem, 1.8vw, 1.45rem); line-height: 1.45; color: var(--on-brand-muted); max-width: 34ch; }
+.eyebrow { display: inline-flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--highlight); margin-bottom: 18px; }
+.eyebrow-sep { width: 22px; height: 1px; background: currentColor; opacity: 0.6; }
+.hero { position: relative; width: 100%; max-width: var(--max); margin: 0 auto; padding: clamp(40px, 7vw, 96px) var(--gutter) clamp(48px, 7vw, 88px); }
+.hero-copy > *, .hero-poster > *, .hero-editorial > * { animation: rise var(--t-slow) var(--ease) both; }
+.hero-copy > :nth-child(1), .hero-poster > :nth-child(2), .hero-editorial > :nth-child(1) { animation-delay: 60ms; }
+.hero-copy > :nth-child(2), .hero-poster > :nth-child(3), .hero-editorial > :nth-child(2) { animation-delay: 140ms; }
+.hero-copy > :nth-child(3), .hero-poster > :nth-child(4), .hero-editorial > :nth-child(3) { animation-delay: 220ms; }
+.hero-copy > :nth-child(4), .hero-poster > :nth-child(5), .hero-editorial > :nth-child(4) { animation-delay: 300ms; }
+.hero .lead, .page-hero .lead { margin-top: 20px; font-size: clamp(1.1rem, 1.7vw, 1.35rem); line-height: 1.5; color: var(--on-brand-muted); max-width: 40ch; }
 .hero-actions { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; }
+${heroCss}
 .hero-art { display: flex; justify-content: center; animation: fade var(--t-slow) var(--ease) 240ms both; }
 .hero-svg { width: min(100%, 420px); height: auto; }
-.hero-rings { transform-origin: 240px 240px; animation: spin 90s linear infinite; }
+.hero-rings { transform-origin: 240px 240px; ${a.motion === "steady" ? "" : "animation: spin 90s linear infinite;"} }
 .hero-orb { transform-origin: 240px 240px; animation: spin 18s linear infinite; }
-.hero-arc { stroke-dasharray: 300; stroke-dashoffset: 300; animation: draw 1.4s var(--ease) 500ms forwards; }
+.hero-glow-svg .hero-orb { transform-origin: 200px 200px; }
+.hero-arc { stroke-dasharray: 800; stroke-dashoffset: 800; animation: draw 1.4s var(--ease) 500ms forwards; }
 
 /* Page hero (inner pages) */
 .page-hero { width: 100%; max-width: var(--max); margin: 0 auto; padding: clamp(32px, 6vw, 72px) var(--gutter) clamp(40px, 6vw, 64px); }
@@ -620,7 +827,7 @@ a { color: inherit; }
 .page-hero > :nth-child(3) { animation-delay: 160ms; }
 .page-hero h1 { font-size: clamp(2.2rem, 5vw, 3.75rem); max-width: 18ch; }
 
-/* Marquee strip */
+/* Strip under the hero */
 .marquee {
   display: flex; overflow: hidden; border-top: 1px solid rgba(255, 255, 255, 0.12);
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
@@ -628,18 +835,16 @@ a { color: inherit; }
 }
 .marquee:hover .marquee-track, .marquee:focus-within .marquee-track { animation-play-state: paused; }
 .marquee-track {
-  flex: none; display: flex; list-style: none; margin: 0; padding: 14px 0; gap: 0; min-width: 100%;
-  animation: marquee 32s linear infinite;
+  flex: none; display: flex; list-style: none; margin: 0; padding: 14px 0; gap: 0; min-width: 100%; justify-content: space-around;
+  animation: marquee ${a.motion === "snappy" ? "22s" : "36s"} linear infinite;
 }
 .marquee-track li { flex: none; padding: 0 28px; font-family: var(--font-display); font-size: 1.05rem; color: var(--on-brand-muted); position: relative; }
 .marquee-track li + li::before { content: ""; position: absolute; left: -3px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--highlight); opacity: 0.7; }
-.marquee-track a { text-decoration: none; }
-.marquee-track a:hover { color: var(--on-brand); text-decoration: underline; text-underline-offset: 4px; }
 
 /* Buttons */
 .button {
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; overflow: hidden;
-  padding: 14px 24px; border-radius: var(--radius-pill); font: 600 1rem var(--font-body); text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  padding: 14px 24px; border-radius: var(--radius-pill); font: 600 1rem var(--font-body); text-decoration: none; border: 1px solid transparent;
   transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), background-color var(--t) var(--ease), color var(--t) var(--ease);
 }
 .button > span { position: relative; }
@@ -650,11 +855,11 @@ a { color: inherit; }
   transition: transform var(--t-slow) var(--ease);
 }
 .button-primary:hover::after, .button-primary:focus-visible::after { transform: translateX(120%) skewX(-18deg); }
-.button-primary:hover, .button-primary:focus-visible { background: var(--accent-deep); transform: translateY(-1px); box-shadow: 0 16px 36px -14px color-mix(in srgb, var(--accent) 90%, transparent); }
+.button-primary:hover, .button-primary:focus-visible { background: var(--accent-deep); transform: translateY(var(--lift)) scale(var(--hover-scale)); box-shadow: 0 16px 36px -14px color-mix(in srgb, var(--accent) 90%, transparent); }
 .button-ghost { color: var(--on-brand); border-color: rgba(255, 255, 255, 0.28); background: transparent; }
 .button-ghost:hover, .button-ghost:focus-visible { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.5); }
 main .button-ghost { color: var(--ink); border-color: var(--line); }
-.button[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+.button[disabled] { opacity: 0.55; transform: none; box-shadow: none; }
 .button[disabled]::after { display: none; }
 
 /* Content sections */
@@ -662,12 +867,10 @@ main { flex: 1; width: 100%; }
 .section { width: 100%; max-width: var(--max); margin: 0 auto; padding: clamp(56px, 8vw, 104px) var(--gutter) 0; }
 .section > h2 { max-width: 20ch; margin-bottom: clamp(24px, 4vw, 40px); }
 .section-intro { color: var(--muted); max-width: 58ch; margin: -8px 0 28px; font-size: 1.1rem; }
+.section-more { margin-top: 20px; font-weight: 600; }
+.section-more a { color: var(--accent-deep); text-decoration: none; }
+.section-more a:hover { text-decoration: underline; text-underline-offset: 4px; }
 .prose { max-width: 66ch; display: grid; gap: 18px; font-size: 1.125rem; line-height: 1.7; }
-.draft-note {
-  margin-top: 28px; display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: var(--radius-pill);
-  font-size: 0.9rem; color: var(--on-brand); background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18);
-}
-.draft-note::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--highlight); flex: none; }
 
 /* Bento grid with spotlight borders */
 .bento { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); grid-auto-rows: minmax(190px, auto); grid-auto-flow: dense; }
@@ -682,7 +885,7 @@ main { flex: 1; width: 100%; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
   transition: opacity var(--t) var(--ease);
 }
-.tile:hover { transform: translateY(-3px); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--brand) 45%, transparent); }
+.tile:hover { transform: translateY(var(--lift)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--brand) 45%, transparent); }
 .tile:hover::before { opacity: 1; }
 .tile-wide { grid-column: span 2; }
 .tile-tall { grid-row: span 2; }
@@ -692,7 +895,8 @@ main { flex: 1; width: 100%; }
 
 /* Plain cards */
 .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 24px; display: grid; gap: 8px; align-content: start; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 24px; display: grid; gap: 8px; align-content: start; transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.card:hover { transform: translateY(var(--lift)); box-shadow: 0 18px 40px -28px color-mix(in srgb, var(--brand) 40%, transparent); }
 .card p { color: var(--muted); }
 
 /* Steps (a genuine sequence) */
@@ -706,7 +910,7 @@ main { flex: 1; width: 100%; }
 .faq { border-top: 1px solid var(--line); }
 .faq:last-of-type { border-bottom: 1px solid var(--line); }
 .faq summary {
-  list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px;
   padding: 20px 4px; font-family: var(--font-display); font-size: 1.25rem;
 }
 .faq summary::-webkit-details-marker { display: none; }
@@ -717,7 +921,7 @@ main { flex: 1; width: 100%; }
 /* Pricing tiers */
 .tiers { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); align-items: stretch; }
 .tier { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 28px; display: grid; gap: 10px; align-content: start; transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease); }
-.tier:hover { transform: translateY(-3px); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--brand) 40%, transparent); }
+.tier:hover { transform: translateY(var(--lift)); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--brand) 40%, transparent); }
 .tier-featured { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
 .tier-featured p, .tier-featured .price { color: var(--on-brand); }
 .tier-featured .tier-points li { color: var(--on-brand-muted); }
@@ -783,21 +987,26 @@ main { flex: 1; width: 100%; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes marquee { to { transform: translateX(-100%); } }
 @keyframes pulse { from { transform: scale(0.9); opacity: 0.8; } to { transform: scale(1.1); opacity: 1; } }
+@keyframes shelf-in { from { opacity: 0; transform: translateY(24px) rotate(0deg); } }
 
 /* Responsive */
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; }
-  .hero-art { order: -1; }
+  .hero-split, .hero-shelf { grid-template-columns: 1fr; }
+  .hero-split .hero-art { order: -1; }
   .hero-svg { width: min(60%, 280px); }
+  .shelf { min-height: 0; margin-top: 24px; }
   .tile-wide { grid-column: span 1; }
   .tile-tall { grid-row: span 1; }
+  .hero-editorial h1 { font-size: clamp(2.4rem, 9vw, 4rem); }
 }
 @media (max-width: 640px) {
   .site-header { flex-direction: column; align-items: flex-start; }
   .site-nav ul { gap: 0; }
   .site-nav a { padding: 6px 10px; font-size: 0.9rem; }
   .hero-actions .button { width: 100%; }
+  .hero-row { grid-template-columns: 1fr; }
   .footer-inner { grid-template-columns: 1fr; }
+  .shelf-card { position: static; transform: none; width: 100%; margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -808,3 +1017,50 @@ main { flex: 1; width: 100%; }
 }
 `;
 }
+
+function heroLayoutCss(layout: HeroLayout): string {
+  switch (layout) {
+    case "editorial":
+      return `
+/* Editorial hero: the headline runs the full width; the tagline and actions sit in a two-column row under it */
+.hero-editorial h1 { font-size: clamp(2.8rem, 8.5vw, 6.6rem); max-width: 16ch; line-height: 0.96; }
+.hero-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: 24px; align-items: end; margin-top: 28px; }
+.hero-row .hero-actions { margin-top: 0; justify-content: flex-end; }
+.hero-rule { margin-top: 40px; height: 24px; }
+.hero-rule svg { width: 100%; height: 24px; display: block; }`;
+    case "poster":
+      return `
+/* Poster hero: everything centred, the biggest type, a glow behind it */
+.hero-poster { text-align: center; display: grid; justify-items: center; padding-top: clamp(56px, 9vw, 120px); }
+.hero-poster h1 { font-size: clamp(2.8rem, 9vw, 7rem); max-width: 14ch; line-height: 0.95; }
+.hero-poster .lead { max-width: 48ch; }
+.hero-poster .hero-actions { justify-content: center; }
+.hero-glow { position: absolute; inset: 0; z-index: -1; display: grid; place-items: center; pointer-events: none; }
+.hero-glow-svg { width: min(90vw, 620px); height: auto; filter: blur(2px); animation: fade var(--t-slow) var(--ease) both; }`;
+    case "shelf":
+      return `
+/* Shelf hero: copy left, three stacked product cards right */
+.hero-shelf { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(24px, 5vw, 64px); align-items: center; }
+.shelf { position: relative; min-height: 500px; display: block; }
+.shelf .hero-glow-svg { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.6; }
+.shelf-card {
+  position: absolute; width: min(100%, 280px); padding: 18px 20px; border-radius: var(--radius-m); background: var(--surface); color: var(--ink);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.55); display: grid; gap: 4px; animation: shelf-in var(--t-slow) var(--ease) both;
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.shelf-card b { font-family: var(--font-display); font-size: 1.1rem; }
+.shelf-card span:last-child { color: var(--muted); font-size: 0.92rem; }
+.shelf-icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--canvas); color: var(--accent); margin-bottom: 6px; }
+.shelf-card-1 { left: 0; top: 0; transform: rotate(-3deg); animation-delay: 200ms; }
+.shelf-card-2 { right: 0; top: 38%; transform: rotate(2deg); animation-delay: 340ms; }
+.shelf-card-3 { left: 10%; bottom: 0; transform: rotate(-1deg); animation-delay: 480ms; }
+.shelf-card:hover { transform: translateY(var(--lift)) rotate(0deg); z-index: 2; }`;
+    case "split":
+    default:
+      return `
+/* Split hero: copy left, the mark's geometry right */
+.hero-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(24px, 5vw, 64px); align-items: center; }`;
+  }
+}
+
+export { ARCHETYPES, detectArchetype };

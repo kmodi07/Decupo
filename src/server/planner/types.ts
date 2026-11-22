@@ -23,7 +23,10 @@ export type MissionPlan = {
   summary: string;
   team: AgentName[];
   steps: PlannedStep[];
+  /** Only the questions the goal did not already answer, most useful first, at most three. */
   questions: PlanQuestion[];
+  /** Answers Cupi read from the goal itself, so they are never asked again. */
+  prefilled: Record<string, string>;
   capabilities: Capability[];
   estimateCredits: number;
   /** Plain-language caveats Cupi must show before authorisation. */

@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
 import { cleanAnswers, parseAnswersParam, readOfPlan } from "@/lib/plan-read";
 import type { MissionPlan } from "@/server/planner/types";
+import { AgentCursor } from "./agent-cursor";
 import { Button, CupiMark, Notice, TextArea } from "./ui";
 
 const EXAMPLES = [
-  "Build me a beautiful website for my tutoring company",
+  "Help Sri Ganesh Agency in Bharuch sell more LG fridges and TVs this season",
   "Find buyers in Delhi for 500 kg of ashwagandha root at Rs 450 per kg",
-  "Post Instagram reels for my electronics shop in Bharuch",
-  "Create a cited economics presentation on inflation",
+  "Make a website for my tutoring company",
+  "Post a week of Instagram reels for my electronics shop in Bharuch",
 ];
 
 /**
@@ -75,18 +76,21 @@ export function Intake() {
   const questions = plan?.questions ?? [];
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <TextArea
-        label="What should the crew work on?"
-        name="goal"
-        rows={3}
-        required
-        minLength={8}
-        maxLength={500}
-        placeholder="Find buyers in Bharuch for 200 bags of basmati rice, message them in Gujarati"
-        value={goal}
-        onChange={(e) => updateGoal(e.target.value)}
-      />
+    <form onSubmit={submit} className="intake-form space-y-4">
+      <AgentCursor mode={busy || previewing ? "think" : "watch"} anchor=".intake-box" typing={goal.length} />
+      <div className="intake-box">
+        <TextArea
+          label="What should the crew work on?"
+          name="goal"
+          rows={3}
+          required
+          minLength={8}
+          maxLength={500}
+          placeholder="Help Sri Ganesh Agency in Bharuch sell more LG fridges and TVs this season"
+          value={goal}
+          onChange={(e) => updateGoal(e.target.value)}
+        />
+      </div>
 
       {plan && (
         <div className="rounded-[14px] bg-white/70 p-4">
@@ -96,13 +100,16 @@ export function Intake() {
           </div>
           {questions.length > 0 && (
             <fieldset className="mt-4">
-              <legend className="text-[13.5px] font-semibold text-ink">A few quick things. All optional; blanks are marked, never guessed.</legend>
+              <legend className="text-[13.5px] font-semibold text-ink">
+                {questions.length === 1 ? "One optional question." : `${questions.length} optional questions.`} Blanks are marked, never guessed.
+              </legend>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {questions.map((q) => (
                   <label key={q.key} className="block">
                     <span className="mb-1 block text-[13px] text-mute">{q.prompt}</span>
                     <input
                       name={`answer-${q.key}`}
+                      aria-label={q.prompt}
                       value={answers[q.key] ?? ""}
                       maxLength={500}
                       onChange={(e) => setAnswers((a) => ({ ...a, [q.key]: e.target.value }))}

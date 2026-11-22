@@ -13,7 +13,9 @@ export function PlanCard({ plan, footer }: { plan: MissionPlan; footer?: React.R
         <CupiMark size={44} className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-mute">Cupi&apos;s plan</p>
-          <h3 className="truncate text-[20px] font-bold tracking-tight">{plan.title}</h3>
+          <h3 className="truncate text-[20px] font-bold tracking-tight" data-cupi="plan-title">
+            {plan.title}
+          </h3>
           <p className="mt-1 text-[15px] leading-relaxed text-ink">{plan.summary}</p>
         </div>
       </header>
@@ -23,7 +25,7 @@ export function PlanCard({ plan, footer }: { plan: MissionPlan; footer?: React.R
           <Crew names={plan.team} />
           <ol className="mt-4 space-y-2.5">
             {plan.steps.map((s, i) => (
-              <li key={s.key} className="flex items-start gap-3">
+              <li key={s.key} className="flex items-start gap-3" data-cupi="step" data-cupi-step={s.key}>
                 <span className="mt-0.5 w-5 shrink-0 text-right text-[13px] font-semibold tabular-nums text-mute">{i + 1}</span>
                 <AgentBadge name={s.agent} size="sm" />
                 <div className="min-w-0 flex-1">
@@ -43,7 +45,7 @@ export function PlanCard({ plan, footer }: { plan: MissionPlan; footer?: React.R
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[14px] bg-midnight p-4 text-cream">
+          <div className="rounded-[14px] bg-midnight p-4 text-cream" data-cupi="estimate">
             <p className="text-[13px] text-cream/70">Estimated cost</p>
             <p className="text-[28px] font-bold tracking-tight">
               <Credits n={plan.estimateCredits} />

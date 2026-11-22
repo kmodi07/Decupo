@@ -17,13 +17,22 @@ export type ReelSlot = { day: number; angle: string; hook: string; shots: string
 
 const LANG_LABEL: Record<Language, string> = { en: "English", hi: "Hindi", gu: "Gujarati" };
 
-function businessFromGoal(goal: string, input: Record<string, unknown>): { business: string; place: string | null; products: string | null } {
+/** Business name, town and products read from the goal; answers win and nothing is guessed. */
+export function businessFromGoal(goal: string, input: Record<string, unknown>): { business: string; place: string | null; products: string | null } {
   const g = goal.replace(/\s+/g, " ").trim();
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const business = str(input.business) ?? /\bfor\s+(?:my|our|the)?\s*([A-Za-z][A-Za-z0-9&'\s-]{2,50}?)(?=\s+(?:in|at|near|that|which|who|selling|which)\b|[.,;]|$)/.exec(g)?.[1]?.trim() ?? "your business";
-  const place = str(input.market) ?? /\b(?:in|at|near)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)(?=[.,;]|\s+(?:that|which|who|selling|for|and)\b|$)/.exec(g)?.[1]?.trim() ?? null;
-  const products = str(input.products) ?? /\b(?:selling|sells?|stock(?:ing|s)?)\s+([a-z][a-z0-9&,\s-]{3,80}?)(?=[.;]|\s+(?:in|at|near)\b|$)/i.exec(g)?.[1]?.trim() ?? null;
-  return { business, place, products };
+  const proper = /^(?:[Hh]elp|[Gg]row|[Pp]romote|[Mm]arket|[Gg]et more customers for|[Bb]ring more customers to)\s+((?:[A-Z][\w&'-]*)(?:\s+(?:[A-Z][\w&'-]*|&|and|of))*?)\s+(?:in|at|near|sell|get|find|reach|grow|to|with)\b/.exec(g)?.[1]?.trim();
+  const business =
+    str(input.business) ??
+    (proper && proper.split(/\s+/).length <= 5 ? proper : null) ??
+    /\bfor\s+(?:my|our|the)?\s*([A-Za-z][A-Za-z0-9&'\s-]{2,50}?)(?=\s+(?:in|at|near|that|which|who|selling|which)\b|[.,;]|$)/.exec(g)?.[1]?.trim() ??
+    "your business";
+  const place = str(input.market) ?? /\b(?:in|at|near)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)(?=[.,;]|\s+(?:that|which|who|selling|sell|for|and|get|find|this|to)\b|$)/.exec(g)?.[1]?.trim() ?? null;
+  const products =
+    str(input.products) ??
+    /\b(?:selling|sell more|sells?|stock(?:ing|s)?|more)\s+(?:of\s+)?([a-z][a-z0-9&,\s-]{3,80}?)(?=[.;]|\s+(?:in|at|near|this|next|before|to|and get)\b|$)/i.exec(g)?.[1]?.trim() ??
+    null;
+  return { business, place, products: products && /^(customers?|sales|revenue|footfall|buyers?)$/i.test(products) ? null : products };
 }
 
 const ANGLES: Array<[string, string, string[]]> = [

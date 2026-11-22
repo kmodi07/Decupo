@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { renderMarkdown } from "@/lib/markdown";
 import type { Approval, Artifact, MissionDetail, MissionEvent, MissionPlan } from "@/lib/types";
 import { TERMINAL_MISSION } from "@/server/missions/state";
+import { AgentCursor, type CursorMode } from "./agent-cursor";
 import { PlanCard } from "./plan-card";
 import { AgentBadge, Button, Card, Credits, formatTime, MissionStatusPill, Notice, Pill, StepStatusPill } from "./ui";
 
@@ -126,9 +128,13 @@ export function MissionControl({ id }: { id: string }) {
   const canResume = mission.status === "paused";
   const canCancel = !TERMINAL_MISSION.has(mission.status);
   const live: "connecting" | "live" | "closed" = TERMINAL_MISSION.has(mission.status) ? "closed" : connected ? "live" : "connecting";
+  // Cupi's cursor sits on the step that is being worked on, or on the one waiting for a decision.
+  const focusStep = steps.find((s) => s.status === "running") ?? steps.find((s) => s.status === "awaiting_approval") ?? steps.find((s) => s.status === "ready");
+  const cursorMode: CursorMode = TERMINAL_MISSION.has(mission.status) || !focusStep ? "hidden" : busy ? "think" : "rest";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <AgentCursor mode={cursorMode} anchor=".mission-steps" tour={focusStep ? [`[data-cupi-step="${focusStep.key}"]`] : []} />
       <nav className="text-[13.5px] text-mute">
         <Link href="/app" className="hover:text-midnight">
           Missions
@@ -211,9 +217,9 @@ export function MissionControl({ id }: { id: string }) {
               <h2 className="text-[18px] font-bold tracking-tight">Crew and steps</h2>
               <span className="text-[13px] text-mute">{steps.filter((s) => s.status === "succeeded").length} of {steps.length} done</span>
             </div>
-            <ol className="mt-4 space-y-3">
+            <ol className="mt-4 space-y-3 mission-steps">
               {steps.map((s, i) => (
-                <li key={s.id} className="flex items-start gap-3 rounded-[12px] p-2 -mx-2">
+                <li key={s.id} className="flex items-start gap-3 rounded-[12px] p-2 -mx-2" data-cupi-step={s.key}>
                   <span className="mt-1 w-4 text-right text-[13px] tabular-nums text-mute">{i + 1}</span>
                   <AgentBadge name={s.agent} />
                   <div className="min-w-0 flex-1">
@@ -409,7 +415,7 @@ function SitePreview({ missionId, files, verdict }: { missionId: string; files: 
           </a>
         </div>
       </div>
-      <p className="mt-1 text-[12.5px] text-mute">Preview is private to your workspace; scripts and form submissions are blocked. Deployment waits for your approval.</p>
+      <p className="mt-1 text-[12.5px] text-mute">Preview is private to your workspace; scripts and form submissions are blocked. Download the files to host the site anywhere.</p>
       {open && (
         <ul className="mt-3 divide-y divide-line">
           {files.map((a) => (
@@ -463,30 +469,3 @@ function ArtifactRow({ artifact }: { artifact: Omit<Artifact, "contentText"> }) 
   );
 }
 
-/** Tiny, safe Markdown subset renderer (headings, lists, quotes, paragraphs). Escapes HTML first. */
-function renderMarkdown(src: string): string {
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const lines = esc(src).split(/\r?\n/);
-  const out: string[] = [];
-  let list: string[] = [];
-  const flush = () => {
-    if (list.length) out.push(`<ul>${list.map((l) => `<li>${inline(l)}</li>`).join("")}</ul>`);
-    list = [];
-  };
-  const inline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    if (/^\s*[-*]\s+/.test(line)) {
-      list.push(line.replace(/^\s*[-*]\s+/, ""));
-      continue;
-    }
-    flush();
-    if (!line.trim()) continue;
-    const h = /^(#{1,3})\s+(.*)$/.exec(line);
-    if (h) out.push(`<h${h[1]!.length}>${inline(h[2]!)}</h${h[1]!.length}>`);
-    else if (line.startsWith("&gt; ")) out.push(`<blockquote>${inline(line.slice(5))}</blockquote>`);
-    else out.push(`<p>${inline(line)}</p>`);
-  }
-  flush();
-  return out.join("");
-}
