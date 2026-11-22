@@ -33,3 +33,18 @@ if (existsSync(linkDir)) {
 console.log(`[cf-build] dereferenced ${replaced} standalone symlink(s)`);
 
 run("npx opennextjs-cloudflare build --skipNextBuild");
+
+// Next copies local .env files into the standalone output and loads them at
+// runtime. Production configuration comes from wrangler vars and secrets only,
+// so strip the local .env files from the bundle.
+const fnDir = path.join(root, ".open-next", "server-functions", "default");
+let stripped = 0;
+if (existsSync(fnDir)) {
+  for (const name of readdirSync(fnDir)) {
+    if (/^.env(..+)?$/.test(name)) {
+      rmSync(path.join(fnDir, name), { force: true });
+      stripped += 1;
+    }
+  }
+}
+console.log(`[cf-build] stripped ${stripped} local .env file(s) from the bundle`);

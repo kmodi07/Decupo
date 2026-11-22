@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "decupo-app",
   // Custom entry: wraps the OpenNext fetch handler and adds the cron step runner.
@@ -8,6 +8,11 @@
   "upload_source_maps": true,
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true },
+  // Production hostnames (Workers custom domains). www is redirected to the apex in worker.ts.
+  "routes": [
+    { "pattern": "decupo.com", "custom_domain": true },
+    { "pattern": "www.decupo.com", "custom_domain": true }
+  ],
   // The step runner: drains queued jobs that the request-time kick did not finish.
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
@@ -17,8 +22,11 @@
     "WORKER_INLINE": "false",
     "LLM_PROVIDER": "mock",
     "SIGNUP_GRANT_CREDITS": "500",
+    // Sign in with Google (public identifier; the secret is GOOGLE_CLIENT_SECRET).
+    "GOOGLE_SIGNIN": "live",
+    "GOOGLE_CLIENT_ID": "807300822952-eq1h22qgtqtn7e5i0qs57l4821v473as.apps.googleusercontent.com",
     // Must match the public hostname or every POST is rejected by the origin check.
-    "APP_ORIGIN": "https://decupo-app.transcreve.workers.dev"
+    "APP_ORIGIN": "https://decupo.com"
   }
   // Secrets (set with `wrangler secret put`): DATABASE_URL (Neon), SESSION_SECRET, SECRETS_MASTER_KEY.
 }
