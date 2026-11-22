@@ -224,7 +224,14 @@ async function buildContext(db: Db, step: MissionStep, goal: string, usage: Skil
     goal,
     input: step.input,
     upstream,
-    llm: getLlmProvider(),
+    llm: manifest.permissionScopes.includes("llm:complete")
+      ? getLlmProvider()
+      : {
+          name: "denied",
+          async complete() {
+            throw new Error(`Skill ${manifest.id} does not have the llm:complete scope`);
+          },
+        },
     async once<T>(key: string, tool: string, fn: () => Promise<T>): Promise<T> {
       const [prior] = await db
         .select()

@@ -1,3 +1,4 @@
+import { hasRealLlm } from "../llm";
 import { getSkill } from "../skills/registry";
 import { requiresApproval } from "../policy/actions";
 import { parseOffer } from "../skills/sales";
@@ -197,6 +198,31 @@ const FALLBACK: Template = {
   caveats: [],
 };
 
+/**
+ * With a language model configured, a goal no template recognises goes to the
+ * model instead of the structured memo. The draft is labelled model-written
+ * and the quality review flags it as unverified.
+ */
+const GENERAL_FALLBACK: Template = {
+  id: "general",
+  match: /.*/,
+  summary: "A model-written draft that answers your goal, clearly labelled as unverified, followed by an independent quality pass.",
+  steps: [
+    { key: "general-task", skillId: "general-task", title: "Draft an answer with a language model" },
+    { key: "qa-review", skillId: "qa-review", title: "Quality review", dependsOn: ["general-task"] },
+  ],
+  questions: [{ key: "focus", prompt: "What matters most about this?", required: false }],
+  capabilities: [
+    { label: "Model-written draft", status: "supported", note: "Written by a language model from your goal and answers; labelled as unverified. No web research." },
+    { label: "Research with sources", status: "not_available", note: "Web research is not connected; the draft cites nothing." },
+  ],
+  caveats: ["This draft is written by a language model and is not checked for accuracy. Review every fact before you rely on it."],
+};
+
+export function fallbackTemplateId(): "research" | "general" {
+  return hasRealLlm() ? "general" : "research";
+}
+
 export function titleFromGoal(goal: string): string {
   const clean = goal.trim().replace(/\s+/g, " ");
   const t = clean.length > 72 ? `${clean.slice(0, 69).trimEnd()}...` : clean;
@@ -208,7 +234,7 @@ export class RuleBasedPlanner implements Planner {
 
   async plan(input: PlanInput): Promise<MissionPlan> {
     const goal = input.goal.trim();
-    const template = TEMPLATES.find((t) => t.match.test(goal)) ?? FALLBACK;
+    const template = TEMPLATES.find((t) => t.match.test(goal)) ?? (fallbackTemplateId() === "general" ? GENERAL_FALLBACK : FALLBACK);
     const answers = input.answers ?? {};
     const prefilled: Record<string, string> = {};
     for (const [k, v] of Object.entries(template.prefill?.(goal) ?? {})) if (typeof v === "string" && v.trim()) prefilled[k] = v.trim();

@@ -17,6 +17,6 @@ export class MockLlmProvider implements LlmProvider {
     const text = [MOCK_NOTICE, "", prompt.length > 0 ? prompt : "(empty prompt)"].join("\n");
     const inputTokens = approxTokens((req.system ?? "") + req.prompt);
     const outputTokens = approxTokens(text);
-    return { text, usage: { inputTokens, outputTokens }, provider: this.name, model: `mock-${req.tier ?? "small"}`, mock: true };
+    return { text, usage: { inputTokens, outputTokens }, provider: this.name, model: `mock-${req.tier ?? "small"}`, mock: true, stopReason: "end" };
   }
 }

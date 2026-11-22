@@ -13,7 +13,7 @@ Worker (see `RUNBOOK_DECUPO_COM_CUTOVER.md`).
 | Database | Neon project `decupo`, branch `production` | Reached with `@neondatabase/serverless` over WebSocket; no Hyperdrive, no sockets API |
 | Step runner | `kickWorker()` after enqueueing responses + cron `* * * * *` | Leases make the two safe together; no long-running process |
 | Static assets | Workers Assets binding `ASSETS` | `.open-next/assets` |
-| Secrets | `DATABASE_URL`, `SESSION_SECRET`, `SECRETS_MASTER_KEY` | `wrangler secret put` |
+| Secrets | `DATABASE_URL`, `SESSION_SECRET`, `SECRETS_MASTER_KEY`; model keys `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY` when `LLM_PROVIDER` is not `mock` | `wrangler secret put`; see `LLM_PROVIDERS.md` |
 | Vars | `wrangler.jsonc` | `APP_ORIGIN` must equal the public URL or every POST fails the origin check |
 
 Local development is unchanged: PGlite with the inline worker. The driver is
@@ -69,8 +69,9 @@ Run `npm run db:migrate` first whenever `drizzle/` gained a migration.
 
 ## Known limits
 
-- Free Workers plan CPU limits may cut long steps; the mock skills are cheap,
-  a connected LLM provider (B-20) will need the paid plan.
+- Free Workers plan CPU limits may cut long steps; the deterministic skills
+  are cheap, a connected model provider (`LLM_PROVIDERS.md`) will need the
+  paid plan since a model call can run for minutes.
 - No incremental cache is configured; every page renders per request.
 - `wrangler deploy` is run from this machine; a GitHub Actions deploy needs a
   `CLOUDFLARE_API_TOKEN` secret and is not set up yet.
